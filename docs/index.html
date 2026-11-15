@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboForge guide</title>
+<style>
+:root { color-scheme: light; --bg:#f4f1ea; --panel:#fbf9f4; --raise:#fff; --line:#d9d4c7; --text:#23221f; --mute:#6b675e; --accent:#c2500a; --ok:#2e7d3a; --bad:#b3261e;
+  --sans:"IBM Plex Sans","Inter",system-ui,sans-serif; --mono:"JetBrains Mono","IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg:#16171a; --panel:#1d1f23; --raise:#25282d; --line:#343840; --text:#e6e3dc; --mute:#9a968c; --accent:#ff8a3d; --ok:#7fc98a; --bad:#ff7a6e; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 var(--sans); }
+.wrap { display:grid; grid-template-columns: 230px minmax(0,1fr); max-width:1100px; margin:0 auto; }
+nav { position:sticky; top:0; align-self:start; height:100vh; overflow:auto; padding:24px 16px; border-right:1px solid var(--line); font-size:13px; }
+nav .brand { font:700 16px var(--mono); margin-bottom:14px; } nav .brand b { color:var(--accent); }
+nav a { display:block; color:var(--mute); text-decoration:none; padding:3px 0; } nav a:hover { color:var(--text); }
+nav a.sub { padding-left:12px; }
+main { padding:28px 36px 80px; min-width:0; }
+h1 { font:700 30px/1.15 var(--mono); letter-spacing:-.03em; margin:0 0 6px; }
+h2 { font:700 20px var(--mono); margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--line); }
+h3 { font:600 15px var(--sans); margin:24px 0 6px; }
+p, li { max-width:72ch; } .lead { color:var(--mute); font-size:16px; }
+code, pre, kbd { font-family:var(--mono); font-size:13px; }
+code { background:var(--raise); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px 14px; overflow:auto; line-height:1.5; }
+pre code { background:none; border:0; padding:0; }
+kbd { background:var(--raise); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; }
+table { border-collapse:collapse; width:100%; margin:10px 0; font-size:14px; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--mute); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.note { border-left:3px solid var(--accent); background:var(--panel); padding:8px 14px; margin:14px 0; max-width:72ch; }
+ol.steps { padding-left:22px; } ol.steps > li { margin-bottom:10px; }
+/* mock of the Launch dialog */
+.mock { background:var(--panel); border:1px solid var(--line); border-radius:8px; max-width:760px; margin:16px 0; font-size:13px; line-height:1.45; }
+.mock .t { font:700 14px var(--mono); padding:10px 14px; border-bottom:1px solid var(--line); }
+.mock .b { padding:10px 14px; } .mock .f { padding:9px 14px; border-top:1px solid var(--line); display:flex; gap:8px; align-items:center; }
+.mock .h { font-weight:600; color:var(--mute); font-size:12px; margin:12px 0 4px; }
+.mock .r { display:flex; gap:8px; align-items:center; }
+.mock .sel { flex:1; background:var(--raise); border:1px solid var(--line); border-radius:5px; padding:4px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mock .btn { background:var(--raise); border:1px solid var(--line); border-radius:5px; padding:4px 10px; white-space:nowrap; }
+.mock .btn.p { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+.mock .c { font:12px var(--mono); color:var(--mute); margin:2px 0 0 24px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mock .badge { font:11px var(--mono); border:1px solid var(--line); border-radius:9px; padding:0 6px; color:var(--mute); margin-left:4px; }
+.grow { flex:1; } .mute { color:var(--mute); }
+@media (max-width: 800px) { .wrap { grid-template-columns:1fr; } nav { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:20px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <div class="brand">robo<b>forge</b> guide</div>
+  <a href="#start">Build and start</a>
+  <a href="#tb3">Example: TurtleBot3</a>
+  <a class="sub" href="#tb3-open">1. Open the workspace</a>
+  <a class="sub" href="#tb3-launch">2. The Launch dialog</a>
+  <a class="sub" href="#tb3-stack">3. Launch the stack</a>
+  <a class="sub" href="#tb3-map">4. Map, then navigate</a>
+  <a href="#import">Importing any project</a>
+  <a href="#configs">Launch configurations</a>
+  <a href="#setup">Environment and setup scripts</a>
+  <a href="#detect">How projects are understood</a>
+  <a href="#vscode">VS Code inside RoboForge</a>
+  <a href="#terminals">Terminals</a>
+  <a href="#env">Environment and builds</a>
+  <a href="#trouble">Troubleshooting</a>
+</nav>
+<main>
+<h1>RoboForge guide</h1>
+<p class="lead">Open a robotics workspace, let the IDE work out what it can launch, and start the whole stack (world, SLAM, viewers, teleop) from one dialog.</p>
+
+<h2 id="start">Build and start</h2>
+<pre><code>cargo build --release --features desktop   # native window (Tauri)
+cargo build --release                      # browser-only build
+
+./target/release/roboforge                 # desktop build: opens the window
+./target/release/roboforge --browser       # open a browser tab instead
+./target/release/roboforge --port 7890     # if 7878 is taken</code></pre>
+<p>The desktop build needs the WebKitGTK development packages once:</p>
+<pre><code>sudo apt install libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev</code></pre>
+<p>Closing the window (or <kbd>Ctrl</kbd>+<kbd>C</kbd>) stops every job and terminal the IDE started, so simulators do not outlive it.</p>
+<p><strong>Several instances.</strong> You can run more than one RoboForge at a time, for example one per project. The first uses port 7878; if that is taken, the next one picks a free port by itself and says which. Each instance has its own jobs, terminals and embedded VS Code server. Pass <code>--port N</code> only if you need a fixed port; a fixed port that is busy is an error.</p>
+
+<h2 id="tb3">Example: a TurtleBot3 simulation workspace</h2>
+<p>The example is a plain colcon workspace, <code>~/turtlebot3_ws</code>, holding a checkout of <code>turtlebot3_simulations</code> (packages <code>turtlebot3_gazebo</code> and <code>turtlebot3_fake_node</code>). Cartographer, Nav2 and teleop are <em>not</em> in the workspace; they are the installed packages <code>turtlebot3_cartographer</code>, <code>turtlebot3_navigation2</code> and <code>turtlebot3_teleop</code>. Launching this by hand takes four terminals, an exported variable and the right arguments:</p>
+<pre><code>export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py                      # terminal 1
+ros2 launch turtlebot3_cartographer cartographer.launch.py use_sim_time:=True # terminal 2
+ros2 run turtlebot3_teleop teleop_keyboard                                    # terminal 3
+ros2 run nav2_map_server map_saver_cli -f ~/map                               # terminal 4</code></pre>
+<p>RoboForge derives all of that from the directory tree.</p>
+
+<h3 id="tb3-open">1. Open the workspace</h3>
+<ol class="steps">
+  <li>Click <strong>Open</strong>, type <code>~/turtlebot3_ws</code> in <em>Folder</em>.</li>
+  <li>Under <em>Or set up an existing ROS workspace in place</em>, pick the ROS distro (Jazzy) and click <strong>Set up this workspace</strong>. Only <code>roboforge.json</code> and <code>.roboforge/</code> are added; packages, <code>build/</code> and <code>install/</code> are untouched. Next time, just open the folder.</li>
+  <li>If the workspace has never been built, run <strong>Build workspace (colcon)</strong> from the Run menu.</li>
+</ol>
+<p>When the project loads, the tree is scanned and a notice reports what was found:</p>
+<div class="note">Detected in this project: 8 simulation worlds, 1 SLAM launch, 1 navigation launch, 1 teleop, 2 bringup launches.<br>Created the launch configuration "World + SLAM + teleop": pick it in the Run menu, or open Launch to edit it.<br>TURTLEBOT3_MODEL still needs a value (Launch dialog).</div>
+<p>That first launch configuration is written to <code>roboforge.json</code> once. It is selected in the Run menu, so after choosing the robot model (next step) <strong>▶ Run</strong> starts the whole stack.</p>
+
+<h3 id="tb3-launch">2. The Launch dialog</h3>
+<p>Click <strong>🚀 Launch</strong> in the header. For this workspace it shows:</p>
+<div class="mock" role="img" aria-label="The Launch dialog for the TurtleBot3 workspace">
+  <div class="t">Launch</div>
+  <div class="b">
+    <div class="h">Environment the launch files need</div>
+    <div class="r"><span style="width:180px;font-family:var(--mono)">TURTLEBOT3_MODEL</span><span class="sel">burger ▾ &nbsp;<span class="mute">(burger, burger_cam, waffle, waffle_pi)</span></span></div>
+    <div class="h">Simulation world <span class="badge">8</span></div>
+    <div class="r">☑ <span class="sel">turtlebot3_world (turtlebot3_gazebo · workspace) ▾</span><span class="btn">Launch</span></div>
+    <div class="c">$ ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py</div>
+    <div class="h">SLAM / mapping</div>
+    <div class="r">☑ <span class="sel">cartographer (turtlebot3_cartographer · environment) ▾</span><span class="btn">Launch</span></div>
+    <div class="c">$ ros2 launch turtlebot3_cartographer cartographer.launch.py use_sim_time:=True</div>
+    <div class="h">Navigation <span class="badge">2</span></div>
+    <div class="r">☐ <span class="sel">navigation2 (turtlebot3_navigation2 · environment) ▾</span><span class="btn">Launch</span></div>
+    <div class="c">$ ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True</div>
+    <div class="h">Control (teleop)</div>
+    <div class="r">☑ <span class="sel">teleop_keyboard (turtlebot3_teleop · keyboard, opens in a terminal) ▾</span><span class="btn">Open terminal</span></div>
+    <div class="c">$ ros2 run turtlebot3_teleop teleop_keyboard</div>
+    <div class="h">Visualization <span class="badge">3</span></div>
+    <div class="r">☐ <span class="sel">RViz (config …/turtlebot3_gazebo/rviz/tb3_gazebo.rviz) ▾</span><span class="btn">Launch</span></div>
+    <div class="c">$ rviz2 -d …/tb3_gazebo.rviz --ros-args -p use_sim_time:=true</div>
+  </div>
+  <div class="f"><span class="mute">Ticked rows form the stack</span><span class="grow"></span><span class="btn">Close</span><span class="btn p">▶ Launch stack</span></div>
+</div>
+<ul>
+  <li><strong>Environment.</strong> The launch files read <code>TURTLEBOT3_MODEL</code> without a default, so it is listed as required. The choices come from the URDF files in the packages. Your pick is saved in the project's <code>roboforge.json</code> (<code>env</code>) and exported for every job and terminal. Rows that depend on an unset variable are disabled until it is set.</li>
+  <li><strong>One row per role.</strong> Each drop-down lists every launch file of that role; the best default is preselected (<code>turtlebot3_world</code> rather than <code>empty_world</code> or the DQN stages). Launch files that are only included by others (<code>spawn_turtlebot3</code>, <code>robot_state_publisher</code>, <code>occupancy_grid</code>) are listed last as “↳ included”.</li>
+  <li><strong>Arguments.</strong> Because the project has a simulator, <code>use_sim_time:=True</code> is appended to every non-simulator launch file that declares it.</li>
+  <li><strong>Launch</strong> starts one entry on its own. Jobs get a tab in the bottom panel (■ stops them); pressing Launch again on a running entry just shows its tab.</li>
+</ul>
+
+<h3 id="tb3-stack">3. Launch the stack</h3>
+<p><strong>▶ Run</strong> with “World + SLAM + teleop” selected in the Run menu does this in one click. <strong>▶ Launch stack</strong> in the dialog does the same for whichever rows are ticked, in this order:</p>
+<table>
+  <tr><th>Order</th><th>What</th><th>Where it runs</th></tr>
+  <tr><td>1</td><td>Simulation world (Gazebo with the robot)</td><td>job tab “World: turtlebot3_world”</td></tr>
+  <tr><td>2</td><td>after about 7 s: SLAM (Cartographer, which opens its own RViz)</td><td>job tab “SLAM: cartographer”</td></tr>
+  <tr><td>3</td><td>Viewers, if ticked. RViz is unticked by default here because Cartographer already opens one.</td><td>job tab</td></tr>
+  <tr><td>4</td><td>Keyboard teleop</td><td>an integrated terminal tab, focused, so the keys <kbd>w</kbd> <kbd>a</kbd> <kbd>s</kbd> <kbd>d</kbd> <kbd>x</kbd> drive the robot straight away</td></tr>
+</table>
+<p>Navigation is not part of the default stack because it needs a map first.</p>
+
+<h3 id="tb3-map">4. Map, then navigate</h3>
+<ol class="steps">
+  <li>Drive the robot around with the teleop terminal until the map in RViz looks complete.</li>
+  <li>In Launch, choose <strong>Navigation ▸ save map</strong>. It writes <code>maps/map.yaml</code> and <code>maps/map.pgm</code> into the project.</li>
+  <li>Stop the SLAM job, then launch <strong>Navigation ▸ navigation2</strong>. Once <code>maps/map.yaml</code> exists, <code>map:=…/maps/map.yaml</code> is added to the command automatically.</li>
+</ol>
+
+<h2 id="import">Importing any project</h2>
+<p><strong>Open ▸ Import…</strong> brings in a folder that is not a RoboForge project, in the way Android Studio imports a project: it inspects the folder, shows what it found and what it will create, and only then creates the project. <strong>Nothing is written into the folder you import.</strong> RoboForge's own files (<code>roboforge.json</code>, <code>.roboforge/</code>) go to <code>~/roboforge-projects/&lt;name&gt;/</code>, and the imported folder is attached to that project as a workspace. Importing the same folder again just reopens the project.</p>
+<p>It works for ROS workspaces and for projects with no ROS at all. Example: <code>~/pythonProjects/8ol</code>, a PX4 + Gazebo project made of Python scripts, a <code>run.sh</code> with subcommands, SDF worlds, a pytest suite and Sphinx docs. The import summary for it reads:</p>
+<div class="mock" role="img" aria-label="Import summary for the 8ol project">
+  <div class="t">Import project</div>
+  <div class="b">
+    <table style="margin:0">
+      <tr><td class="mute" style="width:200px">Source folder</td><td><code>/home/thor/pythonProjects/8ol</code><br><span style="color:var(--ok)">Read only: nothing is created or changed in it.</span></td></tr>
+      <tr><td class="mute">Detected</td><td>command script + Python + Gazebo worlds, no ROS</td></tr>
+      <tr><td class="mute">RoboForge files go to</td><td><code>~/roboforge-projects/8ol/</code></td></tr>
+      <tr><td class="mute">Found</td><td>5 × simulator / world, 19 × run, 4 × training, 2 × tests, 1 × docs, 1 × stop, 5 × tools</td></tr>
+      <tr><td class="mute">Launch configurations</td><td><strong>🚀 run.sh sim → run.sh tap</strong><br><code>./run.sh sim → then ./run.sh tap</code><br><strong>🚀 run.sh sim → run.sh train</strong><br><code>./run.sh sim → then ./run.sh train</code></td></tr>
+      <tr><td class="mute">Run configurations</td><td>Test: run.sh test · Docs: build html</td></tr>
+      <tr><td class="mute">Notes</td><td style="color:var(--bad)">run.sh expects the Python interpreter $HOME/venvs/frontcam-noble/bin/python, which does not exist on this machine…</td></tr>
+    </table>
+  </div>
+  <div class="f"><span class="grow"></span><span class="btn">Cancel</span><span class="btn p">Import</span></div>
+</div>
+<p>What the import reads in a plain (non-ROS) folder:</p>
+<table>
+  <tr><th>What it looks at</th><th>What it concludes</th></tr>
+  <tr><td>Shell scripts in the folder with subcommands: usage lines in comments (<code>#   ./run.sh fly CHECKPOINT   fly a trained policy</code>), <code>cmd_&lt;name&gt;()</code> functions, <code>case "$1"</code> arms</td><td>One entry per subcommand, with the script's own description. Subcommands are sorted into simulator (sim, start, up), stop, training (train, resume…), tests, docs, tools and run. Subcommands that need an argument (<code>CHECKPOINT</code>) are listed but not launched until you fill it in.</td></tr>
+  <tr><td>A <code>stop</code> subcommand next to the simulator one</td><td>The simulator command is a “start” that returns when the simulator is up, so the step after it is set to start <em>after the previous step has finished</em> instead of after a fixed wait.</td></tr>
+  <tr><td>Python files with a <code>__main__</code> block</td><td>Entry points, described by the first line of their docstring.</td></tr>
+  <tr><td><code>Makefile</code> targets</td><td>One entry per target.</td></tr>
+  <tr><td><code>pytest.ini</code>, <code>tests/</code>, <code>docs/conf.py</code> + <code>docs/Makefile</code>, <code>mkdocs.yml</code></td><td>Test and docs commands, which also become run configurations.</td></tr>
+  <tr><td><code>*.world</code> files and <code>*.sdf</code> files containing a world, in the folder or its <code>worlds/</code></td><td><code>gz sim &lt;file&gt;</code> entries.</td></tr>
+  <tr><td><code>PYTHON="${PYTHON:-…}"</code> in a script, or <code>.venv/</code>, <code>venv/</code></td><td>The project's interpreter. If it exists it becomes “Python for builds” in Environment; if it does not, the summary says so.</td></tr>
+</table>
+<p>For a ROS workspace the rules under <a href="#detect">How projects are understood</a> apply in addition.</p>
+
+<h2 id="configs">Launch configurations</h2>
+<p>A launch configuration is a named, ordered list of commands saved in the project. It is the editable counterpart of the detected list: RoboForge creates the first one for you, and you can change it or write your own.</p>
+<table>
+  <tr><th>Where</th><th>What you can do</th></tr>
+  <tr><td>Run menu (header)</td><td>Launch configurations are listed first (🚀). Pick one and press <strong>▶ Run</strong>.</td></tr>
+  <tr><td>Launch dialog, top section</td><td><strong>▶ Run</strong>, <strong>Edit</strong> or delete each configuration; <strong>＋ New configuration</strong>; <strong>Create from detection</strong> adds the suggested stack again.</td></tr>
+  <tr><td>Launch dialog, footer</td><td><strong>Save ticked as configuration</strong> turns the rows you ticked in the detected list into a configuration and opens it in the editor. <strong>■ Stop all</strong> stops every running job.</td></tr>
+</table>
+<h3>The editor</h3>
+<p>Each step has a name (the tab title), a command, the folder it runs in (project or one of its workspaces), whether it runs as a <em>job</em> or in a <em>terminal</em>, when it starts (<em>right away</em>, or <em>after previous</em>: only once the step before it has finished, and only if that step succeeded), and an optional wait in seconds before it starts. Steps can be reordered with ↑ ↓. <strong>＋ Add command</strong> adds an empty step; <strong>Add detected…</strong> inserts any launch the scan found.</p>
+<p>A command is any shell line and runs inside the project environment: <code>ros2 launch …</code>, <code>ros2 run …</code>, <code>./scripts/start_robot.sh</code>, <code>ros2 bag record -a</code>, or several commands joined with <code>&amp;&amp;</code>. Use <em>terminal</em> for anything that reads the keyboard, and <em>wait</em> to give a simulator time to come up.</p>
+<p>This is what the generated TurtleBot3 configuration looks like in <code>roboforge.json</code>, with one custom step added by hand:</p>
+<pre><code>"launch": [
+  {
+    "name": "World + SLAM + teleop",
+    "steps": [
+      { "name": "World: turtlebot3_world", "cmd": "ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py", "workspace": "ros2" },
+      { "name": "SLAM: cartographer", "cmd": "ros2 launch turtlebot3_cartographer cartographer.launch.py use_sim_time:=True", "workspace": "ros2", "wait": 7 },
+      { "name": "Record bag", "cmd": "ros2 bag record -o bags/run1 /scan /odom /tf" },
+      { "name": "Control: teleop_keyboard", "cmd": "ros2 run turtlebot3_teleop teleop_keyboard", "terminal": true }
+    ]
+  }
+]</code></pre>
+<p>A step whose job is already running is skipped, so running a configuration twice does not start a second simulator.</p>
+
+<h2 id="setup">Environment and setup scripts</h2>
+<p>The <strong>Environment</strong> button in the header controls how the project environment is put together. It applies to everything that runs in the project: builds, run and launch configurations, and terminals. Paths can be absolute, start with <code>~/</code>, or be relative to the project folder.</p>
+<table>
+  <tr><th>Field</th><th>Effect</th></tr>
+  <tr><td>ROS setup script</td><td>Sourced <em>instead of</em> the project SDK environment. Use it for a system install (<code>/opt/ros/jazzy/setup.bash</code>) or a ROS you built from source.</td></tr>
+  <tr><td>Also source</td><td>One script per line, sourced in order after ROS and the project's workspace overlays: underlay workspaces, vendor SDK setup files, your own scripts.</td></tr>
+  <tr><td>PATH additions</td><td>One folder per line, put in front of <code>PATH</code>.</td></tr>
+  <tr><td>PYTHONPATH additions</td><td>One folder per line, put in front of <code>PYTHONPATH</code>.</td></tr>
+  <tr><td>Python for builds</td><td>The interpreter colcon (<code>COLCON_PYTHON_EXECUTABLE</code>), CMake's FindPython3 (<code>Python3_ROOT_DIR</code>) and <code>python3</code> on <code>PATH</code> should use, for example a virtualenv's <code>bin/python</code>.</td></tr>
+  <tr><td>Variables</td><td><code>NAME=value</code>, one per line, exported last so they win: <code>ROS_DOMAIN_ID</code>, <code>RMW_IMPLEMENTATION</code>, <code>TURTLEBOT3_MODEL</code>, <code>RF_JOBS</code>…</td></tr>
+</table>
+<div class="note"><strong>bash and zsh scripts.</strong> Activation runs in bash. If you list a <code>.zsh</code> file that has a <code>.bash</code> sibling (ROS ships <code>setup.bash</code> next to <code>setup.zsh</code>), the <code>.bash</code> one is sourced. A zsh-only script is sourced as is, which works when it sticks to plain <code>export</code> lines and fails on zsh-only syntax. A script that does not exist prints one warning line and the rest of the environment still loads.</div>
+<p><strong>Save and check</strong> saves, then runs a short job that prints which ROS distro, <code>ros2</code>, <code>colcon</code> and <code>python3</code> the environment resolves to, and the first entries of <code>PATH</code>, <code>PYTHONPATH</code> and <code>AMENT_PREFIX_PATH</code>, so you can see the effect of a change straight away.</p>
+<p>The same settings in <code>roboforge.json</code>:</p>
+<pre><code>"setup": {
+  "ros_setup": "/opt/ros/jazzy/setup.bash",
+  "source": ["~/underlay_ws/install/setup.bash", "scripts/robot_env.sh"],
+  "path": ["~/tools/bin"],
+  "pythonpath": ["python"],
+  "python": "~/venvs/ros/bin/python"
+},
+"env": { "TURTLEBOT3_MODEL": "burger", "ROS_DOMAIN_ID": "7", "RF_JOBS": "4" }</code></pre>
+<p>Order of activation: ROS (your setup script, else the SDK environment, else <code>/opt/ros/&lt;distro&gt;</code>) → workspace overlays → “also source” scripts → PATH and PYTHONPATH additions → build Python → variables.</p>
+
+<h2 id="detect">How projects are understood</h2>
+<p>Nothing above is specific to TurtleBot3. Each time a project is opened (and each time the Launch dialog opens) RoboForge walks the tree and applies these rules:</p>
+<table>
+  <tr><th>What it looks at</th><th>What it concludes</th></tr>
+  <tr><td>Every <code>package.xml</code> under the ROS workspaces (<code>build/</code>, <code>install/</code>, <code>log/</code>, <code>.git</code> are skipped)</td><td>The workspace packages, and whether each one is built (<code>install/&lt;pkg&gt;</code>). Unbuilt packages are shown but disabled with “run the workspace build first”.</td></tr>
+  <tr><td><code>launch/</code> in each package: <code>*.launch.py</code>, <code>*.launch.xml</code>, <code>*.launch.yaml</code>, <code>*.launch</code></td><td>One entry per file: <code>ros2 launch &lt;pkg&gt; &lt;file&gt;</code> (<code>roslaunch</code> for ROS 1).</td></tr>
+  <tr><td>The first word of the package names (<code>turtlebot3</code>_gazebo)</td><td>The package <em>family</em>. Installed packages of the same family in the environment (<code>turtlebot3_cartographer</code>, <code>turtlebot3_navigation2</code>, <code>turtlebot3_teleop</code>, <code>turtlebot3_bringup</code>) are scanned the same way and marked “environment”.</td></tr>
+  <tr><td>File and package names, and the launch file's content</td><td>The role: <em>SLAM</em> (cartographer, slam, rtabmap, mapping…), <em>navigation</em> (nav2, navigation, amcl, localization), <em>control</em> (teleop, joy, keyboard), <em>visualization</em> (rviz, rqt, foxglove), <em>manipulation</em> (moveit), <em>simulation</em> (the file starts Gazebo, Webots, Isaac or MuJoCo, or is named world/gazebo/sim), otherwise <em>bringup</em> or <em>other</em>.</td></tr>
+  <tr><td>Launch files named inside other launch files of the same package</td><td>Helpers (“↳ included”), never chosen as a default.</td></tr>
+  <tr><td><code>os.environ['NAME']</code> in launch files, followed through includes</td><td>Required variables. <code>&lt;FAMILY&gt;_MODEL</code> gets choices from the packages' URDF file names.</td></tr>
+  <tr><td><code>use_sim_time</code> declared in a launch file, and a simulator present in the project</td><td><code>use_sim_time:=True</code> is appended.</td></tr>
+  <tr><td>Executables with “teleop” in their name in the family packages; otherwise <code>teleop_twist_keyboard</code> if installed</td><td>Keyboard control entries that open in a terminal.</td></tr>
+  <tr><td><code>*.rviz</code> files, <code>*.world</code> and <code>worlds/*.sdf</code></td><td>RViz starts with the project's config; a project with a world but no launch file gets a plain <code>gz sim -r &lt;world&gt;</code> entry.</td></tr>
+  <tr><td>The executables on the project environment's <code>PATH</code></td><td>Entries whose tools are missing are disabled and show the install command.</td></tr>
+</table>
+<p>The scan reads files only; nothing is executed and nothing is written to the workspace. For the TurtleBot3 workspace it takes about half a second.</p>
+
+<h2 id="vscode">VS Code inside RoboForge</h2>
+<p>The <strong>◧ VS Code</strong> button in the header replaces the built-in editor with a full Visual Studio Code, embedded in the same window. It is your own installed VS Code running its local web server (<code>code serve-web</code>), so you get the normal extension marketplace: IntelliSense and language servers (Python, C/C++, Rust…), and chat or agent extensions such as GitHub Copilot or Claude Code. The RoboForge header (Run, Launch, Environment) and the bottom panel stay where they are.</p>
+<table>
+  <tr><th>Topic</th><th>Behaviour</th></tr>
+  <tr><td>Requirement</td><td>VS Code installed with the <code>code</code> command on <code>PATH</code>. The first start downloads the matching server (about a minute); later starts take a few seconds.</td></tr>
+  <tr><td>What opens</td><td>A generated workspace, <code>.roboforge/project.code-workspace</code>: the project folder, plus every project workspace that lives somewhere else (for example an external <code>~/turtlebot3_ws</code>) as additional roots.</td></tr>
+  <tr><td>Environment</td><td>The server is started inside the project environment, so tasks, debuggers and language servers see ROS, the workspace overlays and your setup scripts. The workspace also defines a <em>RoboForge</em> terminal profile (bash with the project environment) and makes it the default.</td></tr>
+  <tr><td>Launch and run from inside VS Code</td><td>The workspace carries a VS Code task for everything RoboForge can start. <strong>Terminal ▸ Run Task…</strong> (or <kbd>F1</kbd> → “Tasks: Run Task”) lists them:
+    <ul style="margin:6px 0 0;padding-left:18px">
+      <li><code>🚀 &lt;name&gt;</code>: each launch configuration. Its steps start side by side in split terminals, honouring the waits; terminal steps get the keyboard focus.</li>
+      <li><code>RoboForge: &lt;name&gt;</code>: each run configuration. The build is the default build task, so <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> builds the workspace; “Tasks: Run Test Task” runs the tests.</li>
+      <li><code>Detected ▸ &lt;name&gt;</code>: every launch the scan found (worlds, SLAM, navigation, teleop, RViz…).</li>
+    </ul>
+    Stop them with “Tasks: Terminate Task”. Every task sources the project environment itself, so it does not depend on your login shell.</td></tr>
+  <tr><td>Kept in sync</td><td>The tasks are regenerated whenever you change launch configurations, run configurations, the environment or <code>roboforge.json</code> in RoboForge; VS Code picks the change up without a reload. The file is generated, so put personal settings in VS Code's user settings or a folder's <code>.vscode/</code>.</td></tr>
+  <tr><td>IntelliSense</td><td>The workspace sets Python extra paths from the environment's <code>PYTHONPATH</code>, C/C++ include paths from the ROS and workspace prefixes, the build Python if you chose one, <code>compile_commands.json</code> when the workspace has one, and XML/YAML highlighting for <code>.launch</code>, <code>.urdf</code>, <code>.xacro</code>, <code>.sdf</code>, <code>.world</code> and <code>.rviz</code> files.</td></tr>
+  <tr><td>RoboForge dialogs</td><td>The RoboForge header stays above VS Code, so Launch (editing configurations, detection), Environment, Workspaces, Modules, Sync SDKs and the SDK Manager are one click away while you edit in VS Code.</td></tr>
+  <tr><td>Appearance</td><td>The embedded VS Code is recoloured to match RoboForge: the same backgrounds, borders, orange accent, syntax colours and monospace font, in both light and dark. Like RoboForge it follows the system light/dark setting. The colours are applied to whichever light or dark theme is active, so choosing a different VS Code theme keeps the RoboForge palette on top; to opt out, override <code>workbench.colorCustomizations</code> in your VS Code user settings.</td></tr>
+  <tr><td>Remembered state</td><td>Each project's VS Code runs on the same local port every time, so VS Code remembers that you trusted the workspace, your layout and your sign-ins between sessions.</td></tr>
+  <tr><td>Restricted Mode</td><td>VS Code opens a new folder in Restricted Mode. Trust the workspace (status bar, or the prompt the first time you run a task) to enable tasks, the terminal profile and all extensions.</td></tr>
+  <tr><td>Extensions</td><td>Install them from the Extensions view inside the embedded VS Code. They are kept in <code>~/.vscode-server</code>, separate from the desktop VS Code's extensions, so sign-ins (Copilot and others) are done once here.</td></tr>
+  <tr><td>Switching back</td><td><strong>◧ Built-in editor</strong> returns to the RoboForge editor; VS Code keeps running and reappears instantly.</td></tr>
+  <tr><td>Stopping</td><td>The server is the job “VS Code server” in the bottom panel; ■ stops it. Closing RoboForge stops it too.</td></tr>
+  <tr><td>Access</td><td>The server listens on <code>127.0.0.1</code> only, on a random port, and requires a random token that is kept in a private file (<code>~/.roboforge/run/vscode-token-&lt;port&gt;</code>).</td></tr>
+</table>
+
+<h2 id="terminals">Terminals</h2>
+<p><strong>＋ Terminal</strong> in the bottom panel (or <kbd>Ctrl</kbd>+<kbd>`</kbd>) opens an interactive bash on a real pty, with your <code>~/.bashrc</code> and then the project environment loaded, so <code>ros2</code>, <code>colcon</code> and the workspace overlay are ready. Several terminals can be open next to the job tabs. Copy with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>, paste with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>. The ⌃ button makes the panel taller.</p>
+
+<h2 id="env">Environment and builds</h2>
+<table>
+  <tr><th>Topic</th><th>Behaviour</th></tr>
+  <tr><td>ROS environment</td><td>The project's RoboStack environment under <code>~/.roboforge/envs</code> is used when it has been synced. If it has not, and <code>/opt/ros/&lt;distro&gt;</code> exists, the system install is sourced instead and a one-line note says so.</td></tr>
+  <tr><td>Workspace overlay</td><td><code>install/setup.bash</code> (or <code>devel/setup.bash</code>) of every ROS workspace in the project is sourced after ROS.</td></tr>
+  <tr><td>Project variables</td><td>Everything under <code>env</code> in <code>roboforge.json</code> is exported for jobs and terminals.</td></tr>
+  <tr><td>Rust and user tools</td><td><code>~/.cargo/env</code> and <code>~/.local/bin</code> are loaded, so <code>cargo</code> is found even when the IDE was started from a launcher.</td></tr>
+  <tr><td>Build parallelism</td><td>Builds started from the IDE leave two cores free: <code>RF_JOBS</code> defaults to <em>cores − 2</em> and sets <code>MAKEFLAGS=-j$RF_JOBS -l$RF_JOBS</code>, <code>CMAKE_BUILD_PARALLEL_LEVEL</code> and <code>CARGO_BUILD_JOBS</code> unless you already exported them. To change it, add for example <code>"RF_JOBS": "4"</code> to <code>env</code> in <code>roboforge.json</code>.</td></tr>
+</table>
+
+<h2 id="trouble">Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Cause and fix</th></tr>
+  <tr><td>“SDK environment … is not installed yet” and <code>ros2: command not found</code></td><td>Neither the project environment nor <code>/opt/ros/&lt;distro&gt;</code> exists. Run <strong>Sync SDKs</strong>, or install that distro system-wide.</td></tr>
+  <tr><td>A Launch row is disabled with “Set TURTLEBOT3_MODEL above first”</td><td>Pick a value in the environment section at the top of the dialog.</td></tr>
+  <tr><td>A row says the package is not built</td><td>Run <strong>Build workspace (colcon)</strong>, then reopen Launch.</td></tr>
+  <tr><td>Gazebo row disabled: “gz is not in this environment”</td><td><code>sudo apt install ros-&lt;distro&gt;-ros-gz</code>, or run Sync SDKs with the Gazebo module.</td></tr>
+  <tr><td>“No display is available”</td><td>RoboForge was started without <code>DISPLAY</code> / <code>WAYLAND_DISPLAY</code> (for example over plain SSH). Start it from a desktop session.</td></tr>
+  <tr><td><code>UserWarning: Unbuilt egg for pytest-repeat</code> during colcon builds</td><td>Harmless warning from the system setuptools. Hide it with <code>"PYTHONWARNINGS": "ignore::UserWarning"</code> in the project's <code>env</code>.</td></tr>
+  <tr><td><code>cargo: command not found</code> in your own zsh</td><td>A line in <code>~/.zshrc</code> that overwrites <code>PATH</code> drops <code>~/.cargo/bin</code>. Add <code>. "$HOME/.cargo/env"</code> after it.</td></tr>
+</table>
+</main>
+</div>
+</body>
+</html>

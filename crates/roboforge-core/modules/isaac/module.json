@@ -1,0 +1,24 @@
+{
+  "id": "isaac",
+  "name": "Isaac Sim scene",
+  "category": "simulation",
+  "summary": "Standalone Isaac Sim app in its own environment.",
+  "components": [
+    "isaac-sim"
+  ],
+  "files": [
+    {
+      "src": "standalone_scene.py",
+      "workspace": "isaac",
+      "dest": "standalone_scene.py"
+    }
+  ],
+  "run": [
+    {
+      "name": "Isaac Sim: scene",
+      "cmd": "python standalone_scene.py",
+      "workspace": "isaac",
+      "env": "isaac"
+    }
+  ]
+}

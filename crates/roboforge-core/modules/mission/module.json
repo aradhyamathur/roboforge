@@ -1,0 +1,24 @@
+{
+  "id": "mission",
+  "name": "Mission sequencer",
+  "category": "integration",
+  "summary": "One node that sequences skills from whichever modules the project has: drone takeoff and land (MAVSDK), navigation (Nav2), arm motion (MoveIt).",
+  "ros": "ros2",
+  "depends": [
+    "std_srvs"
+  ],
+  "files": [
+    {
+      "src": "mission.py",
+      "dest": "@PKGDIR@/@PKG@/mission.py",
+      "workspace": "ros"
+    }
+  ],
+  "run": [
+    {
+      "name": "Mission: run sequence",
+      "cmd": "ros2 run @PKG@ mission",
+      "workspace": "ros"
+    }
+  ]
+}

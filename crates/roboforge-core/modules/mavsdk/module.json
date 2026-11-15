@@ -1,0 +1,53 @@
+{
+  "id": "mavsdk",
+  "name": "MAVSDK",
+  "category": "aerial",
+  "summary": "Standalone MAVSDK-Python app in its own workspace (no ROS needed); in ROS 2 also a bridge node exposing telemetry topics and takeoff/land services.",
+  "components": [
+    "mavsdk"
+  ],
+  "depends": [
+    "sensor_msgs",
+    "std_srvs"
+  ],
+  "files": [
+    {
+      "src": "offboard_mavsdk.py",
+      "workspace": "mav",
+      "dest": "apps/offboard_mavsdk.py"
+    },
+    {
+      "src": "mavsdk_bridge.py",
+      "workspace": "ros",
+      "dest": "@PKGDIR@/@PKG@/mavsdk_bridge.py",
+      "when": [
+        "ros2"
+      ]
+    }
+  ],
+  "run": [
+    {
+      "name": "MAVSDK: offboard demo",
+      "cmd": "python apps/offboard_mavsdk.py",
+      "workspace": "mav"
+    },
+    {
+      "name": "MAVSDK: ROS 2 bridge",
+      "cmd": "ros2 run @PKG@ mavsdk_bridge",
+      "workspace": "ros",
+      "when": [
+        "ros2"
+      ]
+    }
+  ],
+  "launch": [
+    {
+      "name": "mavsdk",
+      "description": "MAVSDK bridge: drone/gps, drone/battery, drone/takeoff, drone/land",
+      "node": {
+        "package": "@PKG@",
+        "executable": "mavsdk_bridge"
+      }
+    }
+  ]
+}

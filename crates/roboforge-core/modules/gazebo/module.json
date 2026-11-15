@@ -1,0 +1,67 @@
+{
+  "id": "gazebo",
+  "name": "Gazebo world",
+  "category": "simulation",
+  "summary": "Empty world with a box. In ROS 2 it lives in the package with a launch file and clock bridge; otherwise in the sim workspace.",
+  "components": [
+    "gazebo"
+  ],
+  "depends": [
+    "ros_gz_sim",
+    "ros_gz_bridge"
+  ],
+  "data_dirs": [
+    "worlds"
+  ],
+  "files": [
+    {
+      "src": "empty.sdf",
+      "workspace": "ros",
+      "dest": "@PKGDIR@/worlds/empty.sdf",
+      "when": [
+        "ros2"
+      ]
+    },
+    {
+      "src": "empty.sdf",
+      "workspace": "sim",
+      "dest": "worlds/empty.sdf",
+      "when": [
+        "!ros2"
+      ]
+    },
+    {
+      "src": "gazebo.launch.py",
+      "workspace": "ros",
+      "dest": "@PKGDIR@/launch/gazebo.launch.py",
+      "when": [
+        "ros2"
+      ]
+    }
+  ],
+  "run": [
+    {
+      "name": "Gazebo: world + ROS bridge",
+      "cmd": "ros2 launch @PKG@ gazebo.launch.py",
+      "workspace": "ros",
+      "when": [
+        "ros2"
+      ]
+    },
+    {
+      "name": "Gazebo: empty world",
+      "cmd": "roslaunch gazebo_ros empty_world.launch",
+      "when": [
+        "ros1"
+      ]
+    },
+    {
+      "name": "Gazebo: world",
+      "cmd": "gz sim -r worlds/empty.sdf",
+      "workspace": "sim",
+      "when": [
+        "noros"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "torch",
+  "name": "PyTorch",
+  "category": "learning",
+  "summary": "Training script that confirms the environment and GPU work.",
+  "components": [
+    "group:torch=torch-cu128"
+  ],
+  "files": [
+    {
+      "src": "train.py",
+      "workspace": "ml",
+      "dest": "train.py"
+    }
+  ],
+  "run": [
+    {
+      "name": "ML: train (PyTorch)",
+      "cmd": "python train.py",
+      "workspace": "ml"
+    }
+  ]
+}

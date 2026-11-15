@@ -1,0 +1,83 @@
+{
+  "id": "mujoco",
+  "name": "MuJoCo",
+  "category": "simulation",
+  "summary": "Model, viewer script and, in ROS 2, a node that steps MuJoCo and publishes joint states and clock.",
+  "components": [
+    "mujoco"
+  ],
+  "depends": [
+    "sensor_msgs",
+    "rosgraph_msgs"
+  ],
+  "data_dirs": [
+    "models"
+  ],
+  "files": [
+    {
+      "src": "scene.xml",
+      "workspace": "ros",
+      "dest": "@PKGDIR@/models/scene.xml",
+      "when": [
+        "ros2"
+      ]
+    },
+    {
+      "src": "scene.xml",
+      "workspace": "sim",
+      "dest": "models/scene.xml",
+      "when": [
+        "!ros2"
+      ]
+    },
+    {
+      "src": "run_mujoco.py",
+      "workspace": "sim",
+      "dest": "run_mujoco.py"
+    },
+    {
+      "src": "mujoco_bridge.py",
+      "workspace": "ros",
+      "dest": "@PKGDIR@/@PKG@/mujoco_bridge.py",
+      "when": [
+        "ros2"
+      ]
+    }
+  ],
+  "run": [
+    {
+      "name": "MuJoCo: viewer",
+      "cmd": "python run_mujoco.py \"$RF_WS_ROS/src/@PKG@/models/scene.xml\"",
+      "workspace": "sim",
+      "when": [
+        "ros2"
+      ]
+    },
+    {
+      "name": "MuJoCo: viewer",
+      "cmd": "python run_mujoco.py",
+      "workspace": "sim",
+      "when": [
+        "!ros2"
+      ]
+    },
+    {
+      "name": "MuJoCo: ROS 2 bridge",
+      "cmd": "ros2 run @PKG@ mujoco_bridge",
+      "workspace": "ros",
+      "when": [
+        "ros2"
+      ]
+    }
+  ],
+  "launch": [
+    {
+      "name": "mujoco",
+      "description": "Step MuJoCo and publish /joint_states and /clock",
+      "node": {
+        "package": "@PKG@",
+        "executable": "mujoco_bridge"
+      }
+    }
+  ]
+}

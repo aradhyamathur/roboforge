@@ -1,0 +1,16 @@
+{
+  "id": "px4-sitl",
+  "name": "PX4 SITL",
+  "category": "aerial",
+  "summary": "PX4 software-in-the-loop with Gazebo.",
+  "components": [
+    "group:px4=px4-1.16",
+    "gazebo"
+  ],
+  "run": [
+    {
+      "name": "PX4: SITL (Gazebo x500)",
+      "cmd": "cd \"$PX4_DIR\" && make px4_sitl gz_x500"
+    }
+  ]
+}

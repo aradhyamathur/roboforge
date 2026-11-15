@@ -1,0 +1,26 @@
+{
+  "id": "pytorch3d",
+  "name": "PyTorch3D",
+  "category": "learning",
+  "summary": "Differentiable mesh rendering demo.",
+  "requires": [
+    "torch"
+  ],
+  "components": [
+    "pytorch3d"
+  ],
+  "files": [
+    {
+      "src": "render_mesh.py",
+      "workspace": "ml",
+      "dest": "render_mesh.py"
+    }
+  ],
+  "run": [
+    {
+      "name": "ML: differentiable render (PyTorch3D)",
+      "cmd": "python render_mesh.py",
+      "workspace": "ml"
+    }
+  ]
+}

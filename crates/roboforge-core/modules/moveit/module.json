@@ -1,0 +1,32 @@
+{
+  "id": "moveit",
+  "name": "MoveIt 2",
+  "category": "manipulation",
+  "summary": "Arm client that plans and executes joint goals through MoveIt's move_action, with the Panda demo as a target.",
+  "ros": "ros2",
+  "components": [
+    "moveit"
+  ],
+  "depends": [
+    "moveit_msgs"
+  ],
+  "files": [
+    {
+      "src": "moveit_goal.py",
+      "dest": "@PKGDIR@/@PKG@/moveit_goal.py",
+      "workspace": "ros"
+    }
+  ],
+  "run": [
+    {
+      "name": "MoveIt: Panda demo (RViz)",
+      "cmd": "ros2 launch moveit_resources_panda_moveit_config demo.launch.py",
+      "workspace": "ros"
+    },
+    {
+      "name": "MoveIt: send joint goal",
+      "cmd": "ros2 run @PKG@ moveit_goal",
+      "workspace": "ros"
+    }
+  ]
+}

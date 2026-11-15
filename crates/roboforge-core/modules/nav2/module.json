@@ -1,0 +1,49 @@
+{
+  "id": "nav2",
+  "name": "Nav2",
+  "category": "navigation",
+  "summary": "Goal sender built on nav2_simple_commander, with the TurtleBot3 simulation as a target.",
+  "ros": "ros2",
+  "components": [
+    "nav2"
+  ],
+  "depends": [
+    "nav2_simple_commander",
+    "geometry_msgs"
+  ],
+  "files": [
+    {
+      "src": "nav_goal.py",
+      "dest": "@PKGDIR@/@PKG@/nav_goal.py",
+      "workspace": "ros"
+    }
+  ],
+  "run": [
+    {
+      "name": "Nav2: TurtleBot3 simulation",
+      "cmd": "ros2 launch nav2_bringup tb3_simulation_launch.py headless:=False",
+      "workspace": "ros"
+    },
+    {
+      "name": "Nav2: send goal",
+      "cmd": "ros2 run @PKG@ nav_goal",
+      "workspace": "ros"
+    },
+    {
+      "name": "Nav2 + SLAM: TurtleBot3 simulation",
+      "cmd": "ros2 launch nav2_bringup tb3_simulation_launch.py slam:=True headless:=False",
+      "when": [
+        "mod:slam-toolbox"
+      ],
+      "workspace": "ros"
+    },
+    {
+      "name": "Nav2 + SLAM: send goal",
+      "cmd": "ros2 run @PKG@ nav_goal --ros-args -p localizer:=bt_navigator -p set_initial_pose:=false",
+      "when": [
+        "mod:slam-toolbox"
+      ],
+      "workspace": "ros"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "gs-slam",
+  "name": "Gaussian Splatting SLAM node",
+  "category": "slam",
+  "summary": "ROS 2 node skeleton: keyframe selection from camera and odometry, with tracking and mapping left as stubs.",
+  "ros": "ros2",
+  "requires": [
+    "gsplat"
+  ],
+  "depends": [
+    "sensor_msgs",
+    "nav_msgs"
+  ],
+  "files": [
+    {
+      "src": "gs_slam.py",
+      "dest": "@PKGDIR@/@PKG@/gs_slam.py",
+      "workspace": "ros"
+    }
+  ],
+  "run": [
+    {
+      "name": "SLAM: Gaussian SLAM node",
+      "cmd": "ros2 run @PKG@ gs_slam",
+      "workspace": "ros"
+    }
+  ],
+  "launch": [
+    {
+      "name": "gs_slam",
+      "description": "Gaussian Splatting SLAM node",
+      "node": {
+        "package": "@PKG@",
+        "executable": "gs_slam"
+      }
+    }
+  ]
+}

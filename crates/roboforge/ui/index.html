@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboForge</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f1ea; --panel: #fbf9f4; --raise: #ffffff; --line: #d9d4c7;
+  --text: #23221f; --mute: #6b675e; --accent: #c2500a; --accent-ink: #ffffff;
+  --ok: #2e7d3a; --bad: #b3261e; --sel: #f0e2d2;
+  --kw: #a23b72; --str: #2e7d3a; --com: #8a857a; --num: #b05a00; --def: #1f5fa8;
+  --sans: "IBM Plex Sans", "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #16171a; --panel: #1d1f23; --raise: #25282d; --line: #343840;
+    --text: #e6e3dc; --mute: #9a968c; --accent: #ff8a3d; --accent-ink: #1a0f06;
+    --ok: #7fc98a; --bad: #ff7a6e; --sel: #3a2c20;
+    --kw: #e58fb6; --str: #9bd3a3; --com: #7d7a72; --num: #f0a868; --def: #86b7ee;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); overflow: hidden; }
+#app { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; height: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: var(--raise); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--mute); }
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.quiet { background: none; border-color: transparent; color: var(--mute); padding: 2px 6px; }
+button.quiet:hover { color: var(--text); }
+button:disabled { opacity: .5; cursor: default; }
+input[type=text], select { background: var(--raise); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; min-width: 0; }
+.mono { font-family: var(--mono); }
+.mute { color: var(--mute); }
+.grow { flex: 1; min-width: 0; }
+
+header { display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { font: 700 15px var(--mono); letter-spacing: -.02em; margin-right: 6px; }
+.brand b { color: var(--accent); }
+.projname { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 24ch; }
+.badge { display: inline-block; font: 11px var(--mono); padding: 1px 6px; border-radius: 9px; border: 1px solid var(--line); color: var(--mute); }
+.badge.warn { color: var(--accent); border-color: var(--accent); }
+
+main { min-height: 0; display: flex; }
+.welcome { margin: auto; width: min(680px, 92vw); padding: 24px 0; }
+.welcome h1 { font: 700 34px/1.1 var(--mono); letter-spacing: -.03em; margin: 0 0 10px; }
+.welcome p { color: var(--mute); max-width: 60ch; margin: 0 0 22px; font-size: 14px; }
+.welcome .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+.welcome .actions button { padding: 9px 16px; font-size: 14px; }
+.recent button { display: block; width: 100%; text-align: left; margin-bottom: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tree { width: 250px; flex: none; background: var(--panel); border-right: 1px solid var(--line); overflow: auto; padding: 6px 0; }
+.tree .root { padding: 8px 12px 2px; font-weight: 600; color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.tree .bar { display: flex; align-items: center; padding: 0 6px 4px 12px; color: var(--mute); }
+.node { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 0; padding: 2px 8px; font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node:hover { background: var(--raise); }
+.node.on { background: var(--sel); }
+.node .tw { display: inline-block; width: 14px; color: var(--mute); }
+.editor { flex: 1; min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.notice { padding: 7px 12px; background: var(--sel); border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+.tabs { display: flex; overflow-x: auto; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 30px; }
+.tab { display: flex; align-items: center; gap: 4px; padding: 0 4px 0 12px; border-right: 1px solid var(--line); font: 12px var(--mono); white-space: nowrap; cursor: pointer; color: var(--mute); }
+.tab.on { background: var(--bg); color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
+.edwrap { min-height: 0; position: relative; display: flex; }
+.empty { margin: auto; color: var(--mute); text-align: center; }
+.gutter { width: 48px; flex: none; text-align: right; padding: 8px 8px 8px 0; color: var(--mute); font: 12.5px/1.5 var(--mono); overflow: hidden; white-space: pre; user-select: none; background: var(--panel); }
+textarea.code { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: var(--bg); padding: 8px; font: 12.5px/1.5 var(--mono); white-space: pre; tab-size: 4; }
+.CodeMirror { flex: 1; min-width: 0; height: auto !important; font: 12.5px/1.5 var(--mono); background: var(--bg) !important; color: var(--text) !important; }
+.CodeMirror-gutters { background: var(--panel) !important; border-right: 0 !important; }
+.CodeMirror-linenumber { color: var(--mute) !important; }
+.CodeMirror-cursor { border-left-color: var(--text) !important; }
+.CodeMirror-selected { background: var(--sel) !important; }
+.cm-keyword, .cm-tag { color: var(--kw) !important; } .cm-string, .cm-string-2 { color: var(--str) !important; }
+.cm-comment { color: var(--com) !important; font-style: italic; } .cm-number, .cm-atom { color: var(--num) !important; }
+.cm-def, .cm-attribute, .cm-builtin, .cm-variable-2 { color: var(--def) !important; } .cm-variable, .cm-property, .cm-operator { color: var(--text) !important; }
+
+footer { border-top: 1px solid var(--line); background: var(--panel); display: grid; grid-template-rows: 30px minmax(0, 1fr) auto; height: 240px; }
+footer.shut { height: 30px; } footer.shut .log, footer.shut .console { display: none; }
+.jobs { display: flex; align-items: center; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.jobs .tab { height: 29px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mute); flex: none; }
+.dot.run { background: var(--accent); animation: pulse 1.2s infinite; } .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot.run { animation: none; } }
+.log { margin: 0; padding: 8px 12px; overflow: auto; font: 12px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; background: var(--bg); }
+.console { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); align-items: center; }
+.console input { font-family: var(--mono); font-size: 12px; }
+
+.veil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; z-index: 10; }
+.modal { margin: auto; width: min(980px, 94vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.modal > h2 { margin: 0; padding: 12px 16px; font: 700 15px var(--mono); border-bottom: 1px solid var(--line); }
+.modal > .body { overflow: auto; padding: 14px 16px; }
+.modal > .foot { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); }
+.field { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+h3 { font: 600 12px var(--sans); color: var(--mute); margin: 16px 0 6px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.card { text-align: left; padding: 9px 10px; border-radius: 6px; }
+.card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.card strong { display: block; margin-bottom: 2px; } .card span { color: var(--mute); font-size: 12px; }
+.comp { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 4px 0; align-items: start; }
+.comp small { display: block; color: var(--mute); }
+.status { font-size: 12px; } .status.bad { color: var(--bad); } .status.ok { color: var(--ok); }
+.row { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+ol.plan { margin: 6px 0 0; padding-left: 20px; font-size: 12px; max-height: 90px; overflow: auto; }
+.toast.good { border-color: var(--ok); }
+details > summary { cursor: pointer; color: var(--mute); margin: 14px 0 4px; }
+.toast { position: fixed; right: 16px; bottom: 16px; z-index: 20; background: var(--raise); border: 1px solid var(--bad); border-radius: 6px; padding: 9px 12px; max-width: 46ch; }
+.term { overflow: auto; padding: 4px 12px; background: var(--bg); font: 12px/1.45 var(--mono); white-space: pre; outline: none; position: relative; cursor: text; }
+.term .tl { min-height: 1.45em; } .term .cur { background: var(--text); color: var(--bg); }
+.term:not(:focus) .cur { background: none; box-shadow: inset 0 0 0 1px var(--mute); }
+footer.big { height: 60vh; }
+footer.shut .term { display: none; }
+.modal textarea { width: 100%; background: var(--raise); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font: 12px/1.5 var(--mono); resize: vertical; }
+.steps .row input[type=text] { font-size: 12px; } .steps .row { gap: 6px; }
+.hint { color: var(--mute); font-size: 12px; margin: 2px 0 10px; }
+#vscwrap { grid-row: 2; grid-column: 1; min-height: 0; display: none; background: var(--bg); z-index: 5; }
+#vscwrap.on { display: block; } #vscwrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+header { grid-row: 1; grid-column: 1; } main { grid-row: 2; grid-column: 1; } footer { grid-row: 3; grid-column: 1; }
+#vscbtn.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+</style>
+</head>
+<body>
+<div id="app"><header id="hdr"></header><main id="main"></main><div id="vscwrap"></div><footer id="panel" class="shut"></footer></div>
+<div id="modals"></div>
+<script>
+'use strict';
+const TOKEN = '__RF_TOKEN__';
+const S = { boot: null, proj: null, tabs: [], active: null, jobs: [], job: null, terms: [], term: null, termCur: null, tree: {}, open: new Set(['']), panelOpen: false, cm: false, polling: false };
+const $ = (id) => document.getElementById(id);
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k in el && k !== 'list') el[k] = v;
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+async function api(path, body) {
+  const r = await fetch('/api/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RF-Token': TOKEN }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({ error: r.statusText }));
+  if (!r.ok) throw new Error(j.error || 'request failed');
+  return j;
+}
+function toast(msg, good) {
+  const t = h('div', { class: 'toast' + (good ? ' good' : ''), role: good ? 'status' : 'alert', style: 'white-space:pre-wrap' }, msg);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 6000);
+}
+const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message); } };
+const dir = () => S.proj.dir;
+
+/* ---------- modal ---------- */
+function modal(title, body, foot) {
+  const veil = h('div', { class: 'veil', onmousedown: (e) => { if (e.target === veil) close(); } },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, h('h2', {}, title), h('div', { class: 'body' }, body), h('div', { class: 'foot' }, foot)));
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  function close() { veil.remove(); document.removeEventListener('keydown', onKey); }
+  document.addEventListener('keydown', onKey);
+  $('modals').append(veil);
+  const first = veil.querySelector('input, select, button');
+  if (first) first.focus();
+  return close;
+}
+
+function docsDialog() {
+  const close = modal('RoboForge guide', h('iframe', { src: '/docs', title: 'RoboForge guide', style: 'width:100%;height:70vh;border:0;background:var(--bg)' }), [h('a', { href: '/docs', target: '_blank', rel: 'noopener', class: 'mute' }, 'Open in a browser tab'), h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Close')]);
+}
+/* ---------- embedded VS Code (the user's own `code serve-web`) ---------- */
+async function toggleVscode() {
+  const wrap = $('vscwrap');
+  if (S.vscOn) { S.vscOn = false; wrap.className = ''; renderHeader(); return; }
+  const live = S.vsc && S.vsc.dir === dir() && S.jobs.some((j) => j.id === S.vsc.job && j.running);
+  if (!live) {
+    toast('Starting VS Code… the first start downloads its server and can take a minute.', true);
+    const r = await api('vscode/start', { dir: dir() });
+    if (!S.jobs.some((j) => j.id === r.job)) { const keep = [S.job, S.termCur, S.term, S.panelOpen]; addJob(r); [S.job, S.termCur, S.term, S.panelOpen] = keep; renderPanel(); }
+    S.vsc = { dir: dir(), job: r.job, url: r.url };
+    wrap.replaceChildren(h('iframe', { src: r.url, title: 'Visual Studio Code', allow: 'clipboard-read; clipboard-write; fullscreen' }));
+  }
+  S.vscOn = true; wrap.className = 'on'; renderHeader();
+}
+/* ---------- header ---------- */
+function renderHeader() {
+  const p = S.proj;
+  const kids = [h('div', { class: 'brand' }, 'robo', h('b', {}, 'forge'))];
+  const docsBtn = h('button', { class: 'quiet', id: 'docsbtn', title: 'Guide: opening a workspace, the Launch dialog, terminals', onclick: docsDialog }, 'Docs');
+  if (p) {
+    const lcs = p.project.launch || [];
+    const sel = h('select', { id: 'runsel', 'aria-label': 'Run or launch configuration' },
+      lcs.length ? h('optgroup', { label: 'Launch configurations' }, lcs.map((c) => h('option', { value: 'launch:' + c.name }, '🚀 ' + c.name))) : null,
+      h('optgroup', { label: 'Run configurations' }, p.project.run.map((r) => h('option', { value: r.name }, r.name))));
+    if (S.lastRun && [...sel.options].some((o) => o.value === S.lastRun)) sel.value = S.lastRun;
+    else if (p.project.run.length) sel.value = p.project.run[0].name;
+    kids.push(h('span', { class: 'projname', title: p.dir }, p.project.name), h('span', { class: 'grow' }),
+      sel, h('button', { class: 'primary', id: 'runbtn', disabled: !p.project.run.length && !lcs.length, onclick: guard(() => { const v = $('runsel').value; return v.startsWith('launch:') ? runLaunch(v.slice(7)) : runConfig(v); }) }, '▶ Run'),
+      h('button', { id: 'envbtn', onclick: guard(envDialog), title: 'ROS setup script, extra scripts to source, PATH, PYTHONPATH, build Python, variables' }, 'Environment'),
+      h('button', { id: 'wsbtn', onclick: guard(workspacesDialog), title: 'Workspaces: separate folders for ROS, MAVSDK apps, sims, ML; reuse existing ones' }, 'Workspaces ', h('span', { class: 'badge' }, p.workspaces.length)),
+      h('button', { id: 'vscbtn', class: S.vscOn ? 'on' : '', onclick: guard(toggleVscode), title: S.vscOn ? 'Back to the built-in editor (VS Code keeps running)' : 'Edit this project in VS Code, embedded here: extensions, IntelliSense, chat and agent extensions' }, S.vscOn ? '◧ Built-in editor' : '◧ VS Code'),
+      h('button', { id: 'toolsbtn', onclick: guard(toolsDialog), title: 'Launch worlds, SLAM, navigation, teleop and viewers detected in this project' }, '🚀 Launch'),
+      h('button', { id: 'modbtn', onclick: guard(modulesDialog), title: 'Mix modules into this project or take them out' }, 'Modules ', h('span', { class: 'badge' }, p.project.modules.length)),
+      h('button', { id: 'syncbtn', onclick: guard(syncSdks), title: p.missing.length ? p.missing.join('\n') : 'All pinned SDKs are installed' },
+        'Sync SDKs ', p.missing.length ? h('span', { class: 'badge warn' }, p.missing.length) : h('span', { class: 'badge' }, '✓')));
+  } else kids.push(h('span', { class: 'grow' }));
+  kids.push(h('button', { onclick: guard(sdkManager) }, 'SDK Manager'), h('button', { onclick: guard(newProject) }, 'New'), h('button', { onclick: guard(openDialog) }, 'Open'));
+  kids.push(docsBtn);
+  $('hdr').replaceChildren(...kids);
+}
+
+/* ---------- main: welcome / workspace ---------- */
+function renderMain() {
+  const m = $('main');
+  if (!S.proj) {
+    m.replaceChildren(h('div', { class: 'welcome' },
+      h('h1', {}, 'One workspace for ROS, PX4 and your simulators.'),
+      h('p', {}, 'A project is a mix of modules (MoveIt, Nav2, SLAM, MAVSDK, PX4, MuJoCo, Isaac Sim, PyTorch and your own) on the ROS distro you pick. Each module brings its SDKs; RoboForge installs them side by side under ' + S.boot.home + ' and never touches the system.'),
+      h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: guard(newProject) }, 'New project'), h('button', { onclick: guard(openDialog) }, 'Open project'), h('button', { onclick: guard(sdkManager) }, 'SDK Manager')),
+      S.boot.recent.length ? h('div', { class: 'recent' }, h('h3', {}, 'Recent projects'), S.boot.recent.map((d) => h('button', { onclick: guard(() => openProject(d)) }, d))) : null));
+    return;
+  }
+  m.replaceChildren(
+    h('nav', { class: 'tree', id: 'tree', 'aria-label': 'Project files' }),
+    h('section', { class: 'editor' }, h('div', { id: 'notice' }), h('div', { class: 'tabs', id: 'tabs', role: 'tablist' }), h('div', { class: 'edwrap', id: 'edwrap' })));
+  renderNotice(); renderTree(); renderTabs(); mountEditor();
+}
+function renderNotice() {
+  const n = $('notice'); if (!n) return;
+  const p = S.proj;
+  if (p.problem) n.replaceChildren(h('div', { class: 'notice' }, h('span', {}, 'SDK selection problem: ' + p.problem + ' Edit roboforge.json to fix it.')));
+  else if (p.missing.length) n.replaceChildren(h('div', { class: 'notice' }, h('span', { class: 'grow' }, p.missing.length + ' SDK install step' + (p.missing.length > 1 ? 's are' : ' is') + ' pending for this project. Run configurations need them.'), h('button', { class: 'primary', onclick: guard(syncSdks) }, 'Sync SDKs')));
+  else n.replaceChildren();
+}
+
+/* ---------- file tree ---------- */
+// Roots: the project folder plus every external workspace (internal ones
+// already show up inside the project). A node key is "<ws>|<path>", ws '' = project.
+const key = (ws, path) => (ws == null ? '' : ws) + '|' + path;
+const split = (k) => { const i = k.indexOf('|'); return { ws: k.slice(0, i) === '' ? null : Number(k.slice(0, i)), path: k.slice(i + 1) }; };
+const roots = () => [{ ws: null, label: S.proj.project.name }, ...S.proj.workspaces.map((w, i) => ({ ws: i, label: w.kind + ' · ' + w.abs, ext: w.external })).filter((r) => r.ext)];
+async function loadDir(k) { const { ws, path } = split(k); S.tree[k] = (await api('fs/list', { dir: dir(), ws, path })).entries; }
+function renderTree() {
+  const t = $('tree'); if (!t) return;
+  const rows = [h('div', { class: 'bar' }, h('span', { class: 'grow' }, 'Files'),
+    h('button', { class: 'quiet', title: 'New file', 'aria-label': 'New file', onclick: guard(newFile) }, '+'),
+    h('button', { class: 'quiet', title: 'New ROS package', 'aria-label': 'New ROS package', id: 'pkgbtn', disabled: !S.proj.workspaces.some((w) => w.kind === 'ros2' || w.kind === 'ros1'), onclick: guard(newPackage) }, '⊞'),
+    h('button', { class: 'quiet', title: 'Refresh', 'aria-label': 'Refresh file tree', onclick: guard(refreshTree) }, '↻'))];
+  const walk = (ws, path, depth) => {
+    for (const e of S.tree[key(ws, path)] || []) {
+      const full = path ? path + '/' + e.name : e.name, k = key(ws, full);
+      const isOpen = S.open.has(k);
+      rows.push(h('button', { class: 'node' + (S.active === k ? ' on' : ''), style: 'padding-left:' + (8 + depth * 14) + 'px', title: full, 'data-path': ws == null ? full : null, 'data-key': k,
+        onclick: guard(async () => { if (e.dir) { if (isOpen) S.open.delete(k); else { S.open.add(k); await loadDir(k); } renderTree(); } else await openFile(k); }) },
+        h('span', { class: 'tw' }, e.dir ? (isOpen ? '▾' : '▸') : ''), e.name));
+      if (e.dir && isOpen) walk(ws, full, depth + 1);
+    }
+  };
+  for (const r of roots()) { if (roots().length > 1) rows.push(h('div', { class: 'root', title: r.label }, r.label)); walk(r.ws, '', 0); }
+  t.replaceChildren(...rows);
+}
+async function refreshTree() { for (const r of roots()) S.open.add(key(r.ws, '')); for (const k of [...S.open]) await loadDir(k).catch(() => S.open.delete(k)); renderTree(); }
+async function newFile() {
+  const rel = prompt('New file, path relative to the project:', 'src/');
+  if (!rel) return;
+  await api('fs/write', { dir: dir(), path: rel, text: '', create: true });
+  const parts = rel.split('/'); parts.pop();
+  let acc = ''; for (const part of parts) { acc = acc ? acc + '/' + part : part; S.open.add(key(null, acc)); }
+  await refreshTree(); await openFile(key(null, rel));
+}
+async function newPackage() {
+  const ros = S.proj.workspaces.map((w, i) => ({ w, i })).filter((x) => x.w.kind === 'ros2' || x.w.kind === 'ros1');
+  const name = h('input', { type: 'text', id: 'pk-name', placeholder: 'my_sensor_driver' });
+  const ws = h('select', { id: 'pk-ws' }, ros.map((x) => h('option', { value: x.i }, x.w.kind + ' · ' + x.w.path)));
+  const kind = h('select', { id: 'pk-kind' }, h('option', { value: 'ament_python' }, 'Python (ament_python / rospy)'), h('option', { value: 'ament_cmake' }, 'C++ (ament_cmake)'));
+  const go = guard(async () => {
+    const r = await api('project/package', { dir: dir(), ws: Number(ws.value), name: name.value, kind: kind.value });
+    close(); S.proj = r; await refreshTree(); toast('Created package:\n' + r.written.map((f) => f.replace(dir() + '/', '')).join('\n'), true);
+  });
+  const close = modal('New ROS package', [h('label', { class: 'field' }, 'Name', name), h('label', { class: 'field' }, 'Workspace', ws), h('label', { class: 'field' }, 'Type', kind),
+    h('p', { class: 'mute' }, 'Creates package.xml, build files, a talker node and a launch file. Build with the workspace\u2019s build run configuration.')],
+    [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', id: 'pk-create', onclick: go }, 'Create')]);
+}
+async function workspacesDialog() {
+  const list = S.proj.project.workspaces.map((w) => ({ ...w }));
+  const body = h('div', {});
+  const draw = () => body.replaceChildren(
+    h('p', { class: 'mute' }, 'Each kind of work has its own folder, like roots in a VS Code workspace: ROS packages build in a colcon/catkin workspace; standalone MAVSDK or PX4 apps, simulator assets, ML code and Isaac apps live beside it. A relative path is inside the project; an absolute or ~/ path reuses a folder elsewhere (an existing ros2_ws, say). ROS workspaces are overlaid in the order listed; the first one hosts this project\u2019s package.'),
+    ...list.map((w, i) => h('div', { class: 'row' },
+      h('input', { type: 'text', value: w.kind, style: 'width:90px', list: 'ws-kinds', 'aria-label': 'Kind', oninput: (e) => { w.kind = e.target.value; } }),
+      h('input', { type: 'text', class: 'grow mono', value: w.path, 'aria-label': 'Path', oninput: (e) => { w.path = e.target.value; } }),
+      (S.proj.workspaces[i] && S.proj.workspaces[i].packages) ? h('span', { class: 'badge', title: S.proj.workspaces[i].packages.join(', ') }, S.proj.workspaces[i].packages.length + ' pkg') : null,
+      h('button', { class: 'quiet', 'aria-label': 'Remove workspace', onclick: () => { list.splice(i, 1); draw(); } }, '×'))),
+    h('datalist', { id: 'ws-kinds' }, ['ros2', 'ros1', 'mav', 'sim', 'ml', 'isaac'].map((k) => h('option', { value: k }))),
+    h('div', { style: 'margin-top:8px' }, h('button', { id: 'ws-add', onclick: () => { const ros = S.proj.project.ros; list.push({ kind: ros ? (ros.startsWith('ros1') ? 'ros1' : 'ros2') : 'sim', path: ros ? 'extra_ws' : 'sim' }); draw(); } }, '+ Add workspace'),
+      ' ', h('span', { class: 'mute' }, 'Folders are created if missing; removing an entry never deletes files.')));
+  draw();
+  const apply = guard(async () => {
+    const r = await api('project/workspaces', { dir: dir(), workspaces: list });
+    close(); S.proj = r; renderHeader(); renderNotice(); await refreshTree(); await reloadTabs();
+  });
+  const close = modal('Workspaces in ' + S.proj.project.name, body, [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', id: 'ws-apply', onclick: apply }, 'Apply')]);
+}
+
+/* ---------- tabs + editor ---------- */
+const tabOf = (k) => S.tabs.find((t) => t.key === k);
+const tabText = (t) => (t.doc ? t.doc.getValue() : t.text);
+const dirty = (t) => tabText(t) !== t.saved;
+async function openFile(k) {
+  if (!tabOf(k)) {
+    const { ws, path } = split(k);
+    const { text } = await api('fs/read', { dir: dir(), ws, path });
+    S.tabs.push({ key: k, ws, path, text, saved: text, doc: null });
+  }
+  S.active = k; renderTabs(); renderTree(); showActive();
+}
+function closeTab(k) {
+  const t = tabOf(k);
+  if (dirty(t) && !confirm('Discard unsaved changes to ' + t.path + '?')) return;
+  S.tabs = S.tabs.filter((x) => x !== t);
+  if (S.active === k) S.active = S.tabs.length ? S.tabs[S.tabs.length - 1].key : null;
+  renderTabs(); renderTree(); showActive();
+}
+function renderTabs() {
+  const el = $('tabs'); if (!el) return;
+  el.replaceChildren(...S.tabs.map((t) => h('div', { class: 'tab' + (t.key === S.active ? ' on' : ''), role: 'tab', tabindex: 0, 'aria-selected': String(t.key === S.active), title: t.path,
+    onclick: () => { S.active = t.key; renderTabs(); renderTree(); showActive(); }, onkeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
+    (dirty(t) ? '● ' : '') + t.path.split('/').pop(),
+    h('button', { class: 'quiet', 'aria-label': 'Close ' + t.path, onclick: (e) => { e.stopPropagation(); closeTab(t.key); } }, '×'))));
+}
+const MODES = { py: 'python', xml: 'xml', sdf: 'xml', urdf: 'xml', launch: 'xml', xacro: 'xml', world: 'xml', html: 'xml', c: 'text/x-csrc', h: 'text/x-c++src', cpp: 'text/x-c++src', hpp: 'text/x-c++src', cc: 'text/x-c++src',
+  json: 'application/json', js: 'javascript', sh: 'shell', bash: 'shell', yaml: 'yaml', yml: 'yaml', rs: 'rust', toml: 'toml', md: 'markdown' };
+const modeFor = (path) => (path.endsWith('CMakeLists.txt') || path.endsWith('.cmake') ? 'cmake' : MODES[path.split('.').pop()] || null);
+let ED = null;
+function mountEditor() {
+  const wrap = $('edwrap'); if (!wrap) return;
+  wrap.replaceChildren();
+  if (S.cm && window.CodeMirror) {
+    const cm = window.CodeMirror(wrap, { lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false,
+      extraKeys: { Tab: (c) => c.execCommand(c.somethingSelected() ? 'indentMore' : 'insertSoftTab') } });
+    cm.on('change', () => renderTabs());
+    ED = { show(t) { if (!t.doc) t.doc = window.CodeMirror.Doc(t.text, modeFor(t.path)); cm.swapDoc(t.doc); cm.getWrapperElement().style.display = ''; cm.refresh(); cm.focus(); },
+      hide() { cm.getWrapperElement().style.display = 'none'; } };
+  } else {
+    const gutter = h('div', { class: 'gutter', 'aria-hidden': 'true' });
+    const ta = h('textarea', { class: 'code', id: 'code', spellcheck: false, 'aria-label': 'Editor', wrap: 'off' });
+    const lines = () => { const n = ta.value.split('\n').length; gutter.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n'); gutter.scrollTop = ta.scrollTop; };
+    ta.addEventListener('input', () => { const t = tabOf(S.active); if (t) { const was = t.text !== t.saved; t.text = ta.value; if (was !== (t.text !== t.saved)) renderTabs(); } lines(); });
+    ta.addEventListener('scroll', () => { gutter.scrollTop = ta.scrollTop; });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;  // Shift+Tab still moves focus out
+      e.preventDefault();
+      ta.setRangeText('    ', ta.selectionStart, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input'));
+    });
+    wrap.append(gutter, ta);
+    ED = { show(t) { gutter.style.display = ta.style.display = ''; ta.value = t.text; lines(); ta.focus(); }, hide() { gutter.style.display = ta.style.display = 'none'; } };
+  }
+  wrap.append(h('div', { class: 'empty', id: 'edempty' }, 'Open a file from the tree. Ctrl+S saves.'));
+  showActive();
+}
+function showActive() {
+  if (!ED || !$('edwrap')) return;
+  const t = tabOf(S.active);
+  $('edempty').style.display = t ? 'none' : '';
+  if (t) ED.show(t); else ED.hide();
+}
+async function reloadTabs() {  // files on disk changed under open, unmodified tabs
+  for (const t of S.tabs) {
+    const { text } = await api('fs/read', { dir: dir(), ws: t.ws, path: t.path }).catch(() => ({ text: null }));
+    if (text == null || text === t.saved) continue;
+    t.text = t.saved = text;
+    if (t.doc) t.doc.setValue(text);
+  }
+  renderTabs(); showActive();
+}
+async function saveActive() {
+  const t = tabOf(S.active); if (!t) return;
+  const text = tabText(t);
+  const r = await api('fs/write', { dir: dir(), ws: t.ws, path: t.path, text });
+  t.saved = text; t.text = text; renderTabs();
+  if (r.project) { S.proj = r; renderHeader(); renderNotice(); }  // roboforge.json was edited
+}
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (S.proj) guard(saveActive)(); } });
+window.addEventListener('beforeunload', (e) => { if (S.tabs.some(dirty)) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- jobs + output panel ---------- */
+function addJob(r) {
+  const j = { id: r.job, title: r.title, text: '', offset: 0, running: true, code: null };
+  S.jobs.push(j); S.job = j.id; S.term = null; S.termCur = null; S.panelOpen = true; renderPanel(); return j;
+}
+function renderPanel() {
+  const f = $('panel');
+  const cur = S.termCur ? null : S.jobs.find((j) => j.id === S.job);
+  const curT = S.termCur;
+  f.className = (S.panelOpen ? '' : 'shut') + (S.big ? ' big' : '');
+  const tabs = S.jobs.map((j) => h('div', { class: 'tab' + (!curT && j.id === S.job ? ' on' : ''), role: 'tab', tabindex: 0, 'aria-selected': String(!curT && j.id === S.job),
+    onclick: () => { S.job = j.id; S.termCur = null; S.term = null; S.panelOpen = true; renderPanel(); }, onkeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
+    h('span', { class: 'dot ' + (j.running ? 'run' : j.code === 0 ? 'ok' : 'bad'), title: j.running ? 'running' : 'exit ' + j.code }), j.title,
+    h('button', { class: 'quiet', 'aria-label': (j.running ? 'Stop ' : 'Close ') + j.title, title: j.running ? 'Stop' : 'Close',
+      onclick: guard(async (e) => { e.stopPropagation(); await api('job/kill', { id: j.id, forget: !j.running }); if (!j.running) { S.jobs = S.jobs.filter((x) => x !== j); if (S.job === j.id) S.job = S.jobs.length ? S.jobs[S.jobs.length - 1].id : null; renderPanel(); } }) }, j.running ? '■' : '×')));
+  const termTabs = S.terms.map((t) => h('div', { class: 'tab' + (curT === t ? ' on' : ''), role: 'tab', tabindex: 0, 'aria-selected': String(curT === t),
+    onclick: () => { S.termCur = t; S.term = t.id; S.panelOpen = true; renderPanel(); t.el.focus(); }, onkeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
+    h('span', { class: 'dot ' + (t.dead ? 'bad' : 'ok'), title: t.dead ? 'exited' : 'running' }), '⌗ ' + (t.title || 'bash ' + t.n),
+    h('button', { class: 'quiet', 'aria-label': 'Close terminal ' + t.n, title: 'Close terminal', onclick: (e) => { e.stopPropagation(); closeTerm(t); } }, '×')));
+  const newBtn = h('button', { class: 'quiet', title: 'New terminal (Ctrl+`)', 'aria-label': 'New terminal', disabled: !S.proj, onclick: guard(newTerminal) }, '＋ Terminal');
+  const sizeBtn = h('button', { class: 'quiet', title: S.big ? 'Smaller panel' : 'Larger panel', 'aria-label': 'Toggle panel size', onclick: () => { S.big = !S.big; renderPanel(); } }, S.big ? '⌄' : '⌃');
+  const ros = S.proj && S.proj.ros;
+  const quick = ros ? [h('button', { class: 'quiet', onclick: guard(() => runCmd(ros === 2 ? 'ros2 topic list -t' : 'rostopic list')) }, 'Topics'),
+    h('button', { class: 'quiet', onclick: guard(() => runCmd(ros === 2 ? 'ros2 node list' : 'rosnode list')) }, 'Nodes')] : [];
+  const log = h('pre', { class: 'log', id: 'log', tabindex: 0, 'aria-label': 'Job output' }, cur ? cur.text : 'Output from builds, launches, simulators and SDK installs appears here. Several jobs can run at once.');
+  const input = h('input', { type: 'text', class: 'grow', id: 'cmd', placeholder: S.proj ? 'Run a command inside the project SDK environment, e.g. ros2 topic echo /chatter' : 'Open a project to run commands', disabled: !S.proj, 'aria-label': 'Command',
+    onkeydown: guard(async (e) => { if (e.key === 'Enter' && input.value.trim()) { const c = input.value; input.value = ''; await runCmd(c); } }) });
+  f.replaceChildren(
+    h('div', { class: 'jobs', role: 'tablist' }, h('button', { class: 'quiet', 'aria-expanded': String(S.panelOpen), onclick: () => { S.panelOpen = !S.panelOpen; renderPanel(); } }, (S.panelOpen ? '▾' : '▸') + ' Output'), tabs, termTabs, h('span', { class: 'grow' }), newBtn, quick, sizeBtn),
+    curT ? curT.el : log, curT ? '' : h('div', { class: 'console' }, h('span', { class: 'mono mute' }, '$'), input));
+  if (curT) { fitTerm(curT); touchTerm(curT); } else log.scrollTop = log.scrollHeight;
+}
+async function pollJobs() {
+  if (S.polling) return;
+  S.polling = true;
+  try {
+    for (const j of [...S.jobs]) {
+      if (j.drained) continue;
+      try {
+        const r = await api('job/poll', { id: j.id, offset: j.offset });
+        const was = j.running;
+        j.offset = r.offset; j.running = r.running; j.code = r.code; j.drained = !r.running && !r.data;
+        if (r.data) {
+          j.text = (j.text + r.data).slice(-400000);
+          const log = $('log');
+          if (j.id === S.job && log) { const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = j.text; if (stick) log.scrollTop = log.scrollHeight; }
+        }
+        if (was && !r.running) { renderPanel(); if (j.refresh) await refreshState().catch(() => {}); }
+      } catch (e) { j.running = false; j.drained = true; j.code = -1; renderPanel(); }
+    }
+  } finally { S.polling = false; }
+}
+
+/* ---------- integrated terminals (pty on the backend, small VT emulator here) ---------- */
+const ANSI16 = ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5', '#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#ffffff'];
+function xcolor(n) {
+  if (n < 16) return ANSI16[n];
+  if (n >= 232) { const v = 8 + (n - 232) * 10; return `rgb(${v},${v},${v})`; }
+  n -= 16; const c = [Math.floor(n / 36), Math.floor(n / 6) % 6, n % 6].map((x) => (x ? 55 + x * 40 : 0));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+class Emu {
+  constructor(cols, rows) {
+    this.cols = cols; this.rows = rows; this.sb = []; this.sbTotal = 0; this.alt = null;
+    this.reset();
+  }
+  blank() { return Array.from({ length: this.cols }, () => ({ c: ' ', s: '' })); }
+  reset() {
+    this.scr = Array.from({ length: this.rows }, () => this.blank());
+    this.x = 0; this.y = 0; this.wrap = false; this.top = 0; this.bot = this.rows - 1;
+    this.pen = {}; this.saved = null; this.curVisible = true; this.appKeys = false; this.paste = false;
+    this.st = 0; this.buf = '';
+  }
+  style() {
+    const p = this.pen; let fg = p.fg, bg = p.bg;
+    if (p.inv) [fg, bg] = [bg || 'var(--bg)', fg || 'var(--text)'];
+    let s = '';
+    if (fg) s += `color:${fg};`; if (bg) s += `background:${bg};`;
+    if (p.bold) s += 'font-weight:700;'; if (p.dim) s += 'opacity:.7;'; if (p.it) s += 'font-style:italic;';
+    if (p.ul) s += 'text-decoration:underline;';
+    return s;
+  }
+  resize(cols, rows) {
+    for (const r of this.scr) { while (r.length < cols) r.push({ c: ' ', s: '' }); r.length = cols; }
+    this.cols = cols;
+    while (this.scr.length > rows) { if (this.y > 0 && !this.alt) { this.pushSb(this.scr.shift()); this.y--; } else this.scr.pop(); }
+    while (this.scr.length < rows) this.scr.push(this.blank());
+    this.rows = rows; this.top = 0; this.bot = rows - 1;
+    this.x = Math.min(this.x, cols - 1); this.y = Math.min(this.y, rows - 1); this.wrap = false;
+  }
+  pushSb(row) { this.sb.push(row); this.sbTotal++; if (this.sb.length > 3000) this.sb.shift(); }
+  scrollUp(n = 1) {
+    for (let i = 0; i < n; i++) {
+      const gone = this.scr.splice(this.top, 1)[0];
+      if (this.top === 0 && !this.alt) this.pushSb(gone);
+      this.scr.splice(this.bot, 0, this.blank());
+    }
+  }
+  scrollDown(n = 1) { for (let i = 0; i < n; i++) { this.scr.splice(this.bot, 1); this.scr.splice(this.top, 0, this.blank()); } }
+  lf() { if (this.y === this.bot) this.scrollUp(); else if (this.y < this.rows - 1) this.y++; }
+  put(ch) {
+    if (this.wrap) { this.x = 0; this.lf(); this.wrap = false; }
+    this.scr[this.y][this.x] = { c: ch, s: this.style() };
+    if (this.x === this.cols - 1) this.wrap = true; else this.x++;
+  }
+  eraseRow(y, a, b) { const r = this.scr[y]; for (let i = a; i < b; i++) r[i] = { c: ' ', s: this.pen.bg ? `background:${this.pen.bg};` : '' }; }
+  write(data) {
+    for (const ch of data) {
+      const cc = ch.codePointAt(0);
+      if (this.st === 0) {
+        if (ch === '\x1b') this.st = 1;
+        else if (ch === '\r') { this.x = 0; this.wrap = false; }
+        else if (ch === '\n' || cc === 11 || cc === 12) { this.lf(); this.wrap = false; }
+        else if (ch === '\b') { if (this.x > 0) this.x--; this.wrap = false; }
+        else if (ch === '\t') { this.x = Math.min(this.cols - 1, (this.x + 8) & ~7); this.wrap = false; }
+        else if (cc >= 32 && cc !== 127) this.put(ch);
+      } else if (this.st === 1) {
+        this.st = 0;
+        if (ch === '[') { this.st = 2; this.buf = ''; }
+        else if (ch === ']') { this.st = 3; this.buf = ''; }
+        else if (ch === '(' || ch === ')' || ch === '#') this.st = 4;
+        else if (ch === '7') this.saved = { x: this.x, y: this.y, pen: { ...this.pen } };
+        else if (ch === '8' && this.saved) { this.x = this.saved.x; this.y = this.saved.y; this.pen = { ...this.saved.pen }; }
+        else if (ch === 'M') { if (this.y === this.top) this.scrollDown(); else if (this.y > 0) this.y--; }
+        else if (ch === 'D') this.lf();
+        else if (ch === 'E') { this.x = 0; this.lf(); }
+        else if (ch === 'c') this.reset();
+      } else if (this.st === 2) {
+        if (cc >= 0x40 && cc <= 0x7e) { this.st = 0; this.csi(this.buf, ch); } else this.buf += ch;
+      } else if (this.st === 3) {
+        if (ch === '\x07') this.st = 0; else if (ch === '\x1b') this.st = 5;
+      } else if (this.st === 5) { this.st = 0; }
+      else if (this.st === 4) this.st = 0;
+    }
+  }
+  csi(raw, f) {
+    const priv = /^[?>=!]/.test(raw) ? raw[0] : '';
+    const a = raw.replace(/^[?>=!]/, '').split(/[;:]/).map((v) => (v === '' ? NaN : parseInt(v, 10)));
+    const n = (i, d) => (Number.isFinite(a[i]) && a[i] > 0 ? a[i] : d);
+    this.wrap = false;
+    const clampY = () => { this.y = Math.max(0, Math.min(this.rows - 1, this.y)); };
+    switch (f) {
+      case 'A': this.y = Math.max(this.top <= this.y ? this.top : 0, this.y - n(0, 1)); break;
+      case 'B': this.y = Math.min(this.bot >= this.y ? this.bot : this.rows - 1, this.y + n(0, 1)); break;
+      case 'C': this.x = Math.min(this.cols - 1, this.x + n(0, 1)); break;
+      case 'D': this.x = Math.max(0, this.x - n(0, 1)); break;
+      case 'E': this.x = 0; this.y += n(0, 1); clampY(); break;
+      case 'F': this.x = 0; this.y -= n(0, 1); clampY(); break;
+      case 'G': this.x = Math.min(this.cols - 1, n(0, 1) - 1); break;
+      case 'd': this.y = Math.min(this.rows - 1, n(0, 1) - 1); break;
+      case 'H': case 'f': this.y = Math.min(this.rows - 1, n(0, 1) - 1); this.x = Math.min(this.cols - 1, n(1, 1) - 1); break;
+      case 'J': {
+        const m = Number.isFinite(a[0]) ? a[0] : 0;
+        if (m === 0) { this.eraseRow(this.y, this.x, this.cols); for (let y = this.y + 1; y < this.rows; y++) this.eraseRow(y, 0, this.cols); }
+        else if (m === 1) { for (let y = 0; y < this.y; y++) this.eraseRow(y, 0, this.cols); this.eraseRow(this.y, 0, this.x + 1); }
+        else { for (let y = 0; y < this.rows; y++) this.eraseRow(y, 0, this.cols); }
+        break;
+      }
+      case 'K': { const m = Number.isFinite(a[0]) ? a[0] : 0; this.eraseRow(this.y, m === 0 ? this.x : 0, m === 1 ? this.x + 1 : this.cols); break; }
+      case 'L': if (this.y >= this.top && this.y <= this.bot) { for (let i = 0; i < n(0, 1); i++) { this.scr.splice(this.bot, 1); this.scr.splice(this.y, 0, this.blank()); } } break;
+      case 'M': if (this.y >= this.top && this.y <= this.bot) { for (let i = 0; i < n(0, 1); i++) { this.scr.splice(this.y, 1); this.scr.splice(this.bot, 0, this.blank()); } } break;
+      case 'P': { const r = this.scr[this.y]; r.splice(this.x, Math.min(n(0, 1), this.cols - this.x)); while (r.length < this.cols) r.push({ c: ' ', s: '' }); break; }
+      case '@': { const r = this.scr[this.y]; for (let i = 0; i < n(0, 1); i++) r.splice(this.x, 0, { c: ' ', s: '' }); r.length = this.cols; break; }
+      case 'X': this.eraseRow(this.y, this.x, Math.min(this.cols, this.x + n(0, 1))); break;
+      case 'S': this.scrollUp(n(0, 1)); break;
+      case 'T': this.scrollDown(n(0, 1)); break;
+      case 'r': this.top = Math.max(0, n(0, 1) - 1); this.bot = Math.min(this.rows - 1, n(1, this.rows) - 1); if (this.top >= this.bot) { this.top = 0; this.bot = this.rows - 1; } this.x = 0; this.y = 0; break;
+      case 's': this.saved = { x: this.x, y: this.y, pen: { ...this.pen } }; break;
+      case 'u': if (this.saved) { this.x = this.saved.x; this.y = this.saved.y; } break;
+      case 'm': this.sgr(a.length ? a : [0]); break;
+      case 'h': case 'l': {
+        const on = f === 'h';
+        if (priv === '?') for (const m of a) {
+          if (m === 25) this.curVisible = on; else if (m === 1) this.appKeys = on; else if (m === 2004) this.paste = on;
+          else if (m === 1049 || m === 1047 || m === 47) this.altScreen(on);
+        }
+        break;
+      }
+      default: break;
+    }
+  }
+  altScreen(on) {
+    if (on && !this.alt) { this.alt = { scr: this.scr, x: this.x, y: this.y }; this.scr = Array.from({ length: this.rows }, () => this.blank()); }
+    else if (!on && this.alt) { this.scr = this.alt.scr; this.x = this.alt.x; this.y = this.alt.y; this.alt = null; this.top = 0; this.bot = this.rows - 1; }
+  }
+  sgr(a) {
+    const p = this.pen;
+    for (let i = 0; i < a.length; i++) {
+      const v = Number.isFinite(a[i]) ? a[i] : 0;
+      if (v === 0) { for (const k of Object.keys(p)) delete p[k]; }
+      else if (v === 1) p.bold = true; else if (v === 2) p.dim = true; else if (v === 3) p.it = true; else if (v === 4) p.ul = true; else if (v === 7) p.inv = true;
+      else if (v === 22) { delete p.bold; delete p.dim; } else if (v === 23) delete p.it; else if (v === 24) delete p.ul; else if (v === 27) delete p.inv;
+      else if (v >= 30 && v <= 37) p.fg = ANSI16[v - 30]; else if (v === 39) delete p.fg;
+      else if (v >= 40 && v <= 47) p.bg = ANSI16[v - 40]; else if (v === 49) delete p.bg;
+      else if (v >= 90 && v <= 97) p.fg = ANSI16[v - 90 + 8]; else if (v >= 100 && v <= 107) p.bg = ANSI16[v - 100 + 8];
+      else if (v === 38 || v === 48) {
+        const key = v === 38 ? 'fg' : 'bg';
+        if (a[i + 1] === 5) { p[key] = xcolor(a[i + 2] | 0); i += 2; }
+        else if (a[i + 1] === 2) { p[key] = `rgb(${a[i + 2] | 0},${a[i + 3] | 0},${a[i + 4] | 0})`; i += 4; }
+      }
+    }
+  }
+}
+
+const KEYMAP = { Enter: '\r', Backspace: '\x7f', Tab: '\t', Escape: '\x1b', Delete: '\x1b[3~', Insert: '\x1b[2~', PageUp: '\x1b[5~', PageDown: '\x1b[6~' };
+function termKey(e, emu) {
+  if (e.isComposing || e.key === 'Process' || e.key === 'Dead') return null;
+  const arrows = { ArrowUp: 'A', ArrowDown: 'B', ArrowRight: 'C', ArrowLeft: 'D', Home: 'H', End: 'F' };
+  const mod = 1 + (e.shiftKey ? 1 : 0) + (e.altKey ? 2 : 0) + (e.ctrlKey ? 4 : 0);
+  if (arrows[e.key]) return mod > 1 ? `\x1b[1;${mod}${arrows[e.key]}` : (emu.appKeys ? '\x1bO' : '\x1b[') + arrows[e.key];
+  if (/^F([1-9]|1[0-2])$/.test(e.key)) {
+    const n = +e.key.slice(1); const low = ['P', 'Q', 'R', 'S'];
+    return n <= 4 ? '\x1bO' + low[n - 1] : '\x1b[' + [15, 17, 18, 19, 20, 21, 23, 24][n - 5] + '~';
+  }
+  if (e.key === 'Tab' && e.shiftKey) return '\x1b[Z';
+  if (KEYMAP[e.key]) return (e.altKey ? '\x1b' : '') + KEYMAP[e.key];
+  if (e.ctrlKey && !e.metaKey && e.key.length === 1) {
+    const c = e.key.toLowerCase().charCodeAt(0);
+    if (c >= 97 && c <= 122) return (e.altKey ? '\x1b' : '') + String.fromCharCode(c - 96);
+    const sp = { '[': 27, '\\': 28, ']': 29, '@': 0, ' ': 0, '/': 31, '_': 31, '^': 30 }[e.key];
+    if (sp != null) return String.fromCharCode(sp);
+    return null;
+  }
+  if (e.metaKey) return null;
+  if (e.key.length >= 1 && [...e.key].length === 1) return (e.altKey ? '\x1b' : '') + e.key;
+  return null;
+}
+
+function cellSpans(row, cursorX) {
+  const out = []; let run = '', rs = null;
+  const flush = () => { if (run) { out.push(h('span', rs ? { style: rs } : {}, run)); run = ''; } };
+  for (let i = 0; i < row.length; i++) {
+    const cell = row[i];
+    if (i === cursorX) { flush(); out.push(h('span', { class: 'cur', style: cell.s }, cell.c)); rs = null; continue; }
+    if (cell.s !== rs) { flush(); rs = cell.s; }
+    run += cell.c;
+  }
+  flush();
+  return out;
+}
+
+let termSeq = 0;
+function renderTermBody(t) {
+  t.raf = 0;
+  const e = t.emu, el = t.el;
+  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 6 || t.stick;
+  // Scrollback is appended once; only the live screen is redrawn.
+  const fresh = Math.min(e.sbTotal - t.sbShown, e.sb.length);
+  for (const r of e.sb.slice(e.sb.length - fresh)) t.sbEl.append(h('div', { class: 'tl' }, cellSpans(r, -1)));
+  t.sbShown = e.sbTotal;
+  while (t.sbEl.childNodes.length > 3000) t.sbEl.firstChild.remove();
+  t.scrEl.replaceChildren(...e.scr.map((r, y) => h('div', { class: 'tl' }, cellSpans(r, y === e.y && e.curVisible && !t.dead && document.activeElement === el ? e.x : -1))));
+  if (stick) el.scrollTop = el.scrollHeight;
+  t.stick = false;
+}
+function touchTerm(t) { if (!t.raf) t.raf = requestAnimationFrame(() => renderTermBody(t)); }
+
+function fitTerm(t) {
+  const el = t.el; if (!el.isConnected || !el.clientWidth) return;
+  const m = h('span', { class: 'tl', style: 'position:absolute;visibility:hidden;white-space:pre' }, 'M'.repeat(40));
+  el.append(m); const cw = m.getBoundingClientRect().width / 40, lh = m.getBoundingClientRect().height || 17; m.remove();
+  if (!cw) return;
+  const cols = Math.max(20, Math.floor((el.clientWidth - 24) / cw)), rows = Math.max(4, Math.floor((el.clientHeight - 8) / lh));
+  t.pending = { cols, rows };
+  if (cols !== t.emu.cols || rows !== t.emu.rows) { t.emu.resize(cols, rows); touchTerm(t); if (t.id) api('term/resize', { id: t.id, cols, rows }).catch(() => {}); }
+}
+
+function makeTerm() {
+  const t = { id: null, n: ++termSeq, emu: new Emu(80, 14), offset: 0, alive: true, dead: false, sbShown: 0, queue: '', sending: false, stick: true };
+  t.sbEl = h('div', { class: 'sb' }); t.scrEl = h('div', { class: 'scr' });
+  t.el = h('div', { class: 'term mono', tabindex: 0, role: 'textbox', 'aria-label': 'Terminal ' + t.n, 'aria-multiline': 'true',
+    onkeydown: (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') { const sel = String(getSelection()); if (sel) navigator.clipboard.writeText(sel).catch(() => {}); e.preventDefault(); return; }
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v') return;  // let the browser fire a paste event
+      if (e.ctrlKey && e.key === '`') return;
+      const k = termKey(e, t.emu);
+      if (k == null) return;
+      e.preventDefault(); t.stick = true; sendTerm(t, k);
+    },
+    onpaste: (e) => { e.preventDefault(); const txt = (e.clipboardData || window.clipboardData).getData('text'); if (txt) sendTerm(t, t.emu.paste ? '\x1b[200~' + txt + '\x1b[201~' : txt.replace(/\r?\n/g, '\r')); },
+    onfocus: () => touchTerm(t), onblur: () => touchTerm(t),
+    onmouseup: () => { if (!String(getSelection())) t.el.focus(); } }, t.sbEl, t.scrEl);
+  new ResizeObserver(() => fitTerm(t)).observe(t.el);
+  return t;
+}
+function sendTerm(t, data) {
+  t.queue += data;
+  if (t.sending || !t.id) return;
+  t.sending = true;
+  (async () => {
+    try { while (t.queue) { const d = t.queue; t.queue = ''; await api('term/write', { id: t.id, data: d }); } }
+    catch (e) { /* the shell is gone; the poller reports it */ }
+    finally { t.sending = false; }
+  })();
+}
+async function newTerminal(opts) {
+  if (!S.proj) { toast('Open a project first.'); return; }
+  const o = opts && typeof opts.cmd === 'string' ? opts : {};
+  const t = makeTerm(); t.title = o.title || null;
+  S.terms.push(t); S.term = t.id = null; S.termCur = t; S.panelOpen = true; renderPanel();
+  fitTerm(t);
+  const { cols, rows } = t.pending || { cols: 80, rows: 14 };
+  try {
+    const r = await api('term/new', { dir: dir(), cols, rows });
+    t.id = r.term; S.term = t.id; renderPanel(); t.el.focus(); sendTerm(t, o.cmd ? o.cmd + '\r' : '');
+  } catch (e) { S.terms = S.terms.filter((x) => x !== t); S.termCur = null; renderPanel(); toast(e.message); }
+}
+async function closeTerm(t) {
+  S.terms = S.terms.filter((x) => x !== t);
+  if (S.termCur === t) { S.termCur = null; S.term = null; const last = S.terms[S.terms.length - 1]; if (last) { S.termCur = last; S.term = last.id; } }
+  renderPanel();
+  if (t.id) await api('term/close', { id: t.id }).catch(() => {});
+}
+let polling2 = false;
+async function pollTerms() {
+  if (polling2) return; polling2 = true;
+  try {
+    for (const t of [...S.terms]) {
+      if (!t.id || t.dead) continue;
+      try {
+        const r = await api('term/poll', { id: t.id, offset: t.offset });
+        t.offset = r.offset;
+        if (r.data) { t.emu.write(r.data); touchTerm(t); }
+        if (!r.alive && !r.data) { t.dead = true; t.emu.write(`\r\n\x1b[2m[shell exited with code ${r.code}; close this tab or press + for a new one]\x1b[0m\r\n`); touchTerm(t); renderPanel(); }
+      } catch (e) { t.dead = true; touchTerm(t); renderPanel(); }
+    }
+  } finally { polling2 = false; }
+}
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === '`' && S.proj) {
+    e.preventDefault();
+    if (S.termCur && S.panelOpen && document.activeElement !== S.termCur.el) { S.termCur.el.focus(); }
+    else if (S.termCur && S.panelOpen) { S.panelOpen = false; renderPanel(); }
+    else if (S.termCur) { S.panelOpen = true; S.term = S.termCur.id; renderPanel(); S.termCur.el.focus(); }
+    else guard(newTerminal)();
+  }
+});
+async function refreshState() {
+  S.boot = await api('boot');
+  if (S.proj) { S.proj = await api('project/open', { dir: dir() }); renderHeader(); renderNotice(); await refreshTree(); }
+}
+async function runConfig(name) { S.lastRun = name; const j = addJob(await api('run', { dir: dir(), config: name })); j.refresh = true; }
+async function runCmd(cmd) { addJob(await api('run', { dir: dir(), cmd })); }
+/* ---------- launch: worlds, SLAM, navigation, control, viewers detected from the project tree ---------- */
+const ROLE_NAMES = { sim: 'Simulator / world', slam: 'SLAM / mapping', nav: 'Navigation', control: 'Control (teleop)', viz: 'Visualization', manip: 'Manipulation', bringup: 'Bringup', run: 'Run', train: 'Training', test: 'Tests', docs: 'Docs', stop: 'Stop', tool: 'Tools', other: 'Other launch files' };
+const toolRunning = (t) => !t.terminal && S.jobs.some((j) => j.title === t.name && j.running);
+async function launchTool(t) {
+  if (t.terminal) { await newTerminal({ cmd: t.cmd, title: t.name.replace(/^Control: /, '') }); return; }
+  if (toolRunning(t)) { const j = S.jobs.find((x) => x.title === t.name && x.running); S.job = j.id; S.termCur = null; S.term = null; S.panelOpen = true; renderPanel(); return; }
+  addJob(await api('run', { dir: dir(), cmd: t.cmd, workspace: t.workspace, title: t.name }));
+}
+async function toolsDialog() {
+  const info = await api('project/tools', { dir: dir() });
+  S.tools = info;
+  const unset = new Set(info.env.filter((e) => !e.value).map((e) => e.name));
+  const blocked = (t) => (t.env || []).filter((n) => unset.has(n));
+  const usable = (t) => t.available && (info.display || !['sim', 'viz', 'slam', 'nav', 'control', 'manip', 'bringup'].includes(t.role)) && !blocked(t).length && !(t.args || []).length;
+  const why = (t) => blocked(t).length ? 'Set ' + blocked(t).join(', ') + ' above first.' : (t.args || []).length ? t.hint : !t.available ? t.hint : '';
+  let close = () => {};
+  const reopen = guard(async () => { close(); await toolsDialog(); });
+  const envRows = info.env.map((e) => {
+    const set = guard(async (v) => { S.proj = await api('project/env', { dir: dir(), name: e.name, value: v }); renderHeader(); await reopen(); });
+    const ctl = e.choices.length
+      ? h('select', { 'aria-label': e.name, 'data-env': e.name, onchange: (ev) => set(ev.target.value) }, h('option', { value: '' }, '(not set)'), e.choices.concat(e.value && !e.choices.includes(e.value) ? [e.value] : []).map((c) => h('option', { value: c, selected: c === e.value }, c)))
+      : h('input', { type: 'text', class: 'mono', 'aria-label': e.name, 'data-env': e.name, value: e.value || '', placeholder: 'not set', onchange: (ev) => set(ev.target.value.trim()) });
+    return h('label', { class: 'field', style: 'grid-template-columns: 190px 1fr' }, h('span', { class: 'mono' }, e.name, e.value ? null : unsetNeeded(info).includes(e.name) ? h('span', { class: 'status bad' }, '  required') : h('span', { class: 'mute' }, '  optional')), ctl);
+  });
+  const slamPrimary = info.tools.find((t) => t.role === 'slam' && t.primary);
+  const picks = [];
+  const sections = Object.keys(ROLE_NAMES).filter((r) => info.tools.some((t) => t.role === r)).map((role) => {
+    const list = info.tools.filter((t) => t.role === role);
+    const sel = h('select', { class: 'grow', 'aria-label': ROLE_NAMES[role], 'data-role': role }, list.map((t) => h('option', { value: t.id, selected: t.primary }, (t.helper ? '↳ included: ' : '') + t.name.replace(/^[A-Za-z ]+: /, '') + '  (' + t.detail + ')')));
+    const cur = () => list.find((t) => t.id === sel.value) || list[0];
+    const inStack = role === 'sim' || role === 'slam' || role === 'control' || (role === 'viz' && !(slamPrimary && slamPrimary.opens_rviz));
+    const cb = h('input', { type: 'checkbox', checked: inStack, title: 'Include in "Launch stack"', 'aria-label': 'Include ' + ROLE_NAMES[role] + ' in the stack' });
+    const cmd = h('small', { class: 'mono', style: 'display:block;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap' });
+    const note = h('small', { class: 'status bad', style: 'display:block' });
+    const btn = h('button', { onclick: guard(async () => { await launchTool(cur()); close(); }) }, 'Launch');
+    const sync = () => { const t = cur(); cmd.textContent = '$ ' + t.cmd; cmd.title = t.cmd; note.textContent = why(t); btn.disabled = !usable(t); btn.textContent = toolRunning(t) ? 'Show' : t.terminal ? 'Open terminal' : 'Launch'; };
+    sel.addEventListener('change', sync); sync();
+    picks.push({ role, cb, cur });
+    return h('div', { 'data-section': role }, h('h3', {}, ROLE_NAMES[role], list.length > 1 ? h('span', { class: 'badge', style: 'margin-left:6px' }, list.filter((t) => !t.helper).length) : null),
+      h('div', { class: 'row', style: 'border:0;padding-bottom:0' }, cb, sel, btn), cmd, note);
+  });
+  const stack = guard(async () => {
+    const chosen = picks.filter((p) => p.cb.checked).map((p) => p.cur());
+    const bad = chosen.filter((t) => !usable(t));
+    if (bad.length) { toast(bad.map((t) => t.name + ': ' + (why(t) || 'no display')).join('\n')); return; }
+    close();
+    const first = chosen.filter((t) => t.stage === 0 && !toolRunning(t));
+    const rest = chosen.filter((t) => t.stage !== 0);
+    for (const t of first) await launchTool(t);
+    if (first.length && rest.length) { toast('Simulator starting; the rest of the stack follows in a few seconds.', true); await new Promise((r) => setTimeout(r, 7000)); }
+    for (const t of rest.filter((t) => !t.terminal)) await launchTool(t);
+    for (const t of rest.filter((t) => t.terminal)) await launchTool(t);   // last, so the keyboard ends up in the teleop terminal
+  });
+  const cfgs = S.proj.project.launch || [];
+  const saveCfgs = async (list) => { S.proj = await api('project/launch', { dir: dir(), launch: list }); renderHeader(); };
+  const uniq = (name) => { let n = name, i = 2; while (cfgs.some((c) => c.name === n)) n = name + ' ' + i++; return n; };
+  const cfgRows = cfgs.map((c, i) => h('div', { class: 'row', 'data-config': c.name },
+    h('div', { class: 'grow' }, h('strong', {}, c.name), h('small', { class: 'mute', style: 'display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, c.steps.map((st) => (st.after_exit ? 'then ' : '') + (st.wait ? '⏱' + st.wait + 's ' : '') + st.name + (st.terminal ? ' ⌗' : '')).join('  →  ') || 'no steps yet')),
+    h('button', { class: 'primary', disabled: !c.steps.length, onclick: guard(async () => { close(); await runLaunch(c.name); }) }, '▶ Run'),
+    h('button', { onclick: () => { close(); launchEditor(i); } }, 'Edit'),
+    h('button', { class: 'quiet', 'aria-label': 'Delete ' + c.name, title: 'Delete', onclick: guard(async () => { await saveCfgs(cfgs.filter((x) => x !== c)); await reopen(); }) }, '×')));
+  const cfgSection = [h('h3', {}, 'Launch configurations'),
+    h('p', { class: 'hint' }, 'Saved in roboforge.json. Each is an ordered list of commands; pick one in the Run menu or run it here. Edit them freely: add your own commands, scripts, waits and terminals.'),
+    cfgRows.length ? cfgRows : h('p', { class: 'mute' }, 'None yet.'),
+    h('div', { class: 'row', style: 'border:0' }, h('button', { id: 'cfg-new', onclick: () => { close(); launchEditor(-1); } }, '＋ New configuration'),
+      info.suggested.length ? h('button', { id: 'cfg-detect', title: info.suggested.map((c) => c.name).join('\n'), onclick: guard(async () => { const add = []; for (const c of info.suggested) { let n = c.name, i = 2; while (cfgs.concat(add).some((x) => x.name === n)) n = c.name + ' ' + i++; add.push({ ...c, name: n }); } await saveCfgs(cfgs.concat(add)); await reopen(); }) }, 'Create from detection') : null,
+      h('span', { class: 'grow' }), h('button', { class: 'quiet', onclick: () => { close(); guard(envDialog)(); } }, 'Environment & setup scripts…'))];
+  const saveTicked = guard(async () => {
+    const chosen = picks.filter((p) => p.cb.checked).map((p) => p.cur());
+    if (!chosen.length) { toast('Tick at least one row.'); return; }
+    const ordered = chosen.filter((t) => t.stage === 0).concat(chosen.filter((t) => t.stage !== 0 && !t.terminal), chosen.filter((t) => t.stage !== 0 && t.terminal));
+    const hasSim = ordered.some((t) => t.stage === 0);
+    const steps = ordered.map((t, i) => ({ name: t.name, cmd: t.cmd, workspace: t.workspace || undefined, terminal: t.terminal || undefined, wait: hasSim && i === ordered.findIndex((x) => x.stage !== 0) ? 7 : undefined }));
+    await saveCfgs(cfgs.concat([{ name: uniq('My stack'), steps }]));
+    close(); launchEditor((S.proj.project.launch || []).length - 1);
+  });
+  const body = [cfgSection, h('h3', { style: 'margin-top:22px;border-top:1px solid var(--line);padding-top:14px' }, 'Detected in this project'), h('p', { class: 'hint' }, 'Found by scanning this project: launch files in the workspace packages, companion packages installed in the environment, RViz configs and worlds. Everything runs inside the project SDK environment; jobs appear as tabs in the bottom panel, keyboard teleop opens in a terminal.'),
+    info.display ? null : h('p', { class: 'status bad' }, 'No display (DISPLAY / WAYLAND_DISPLAY) is available to RoboForge, so GUI tools cannot open.'),
+    envRows.length ? [h('h3', {}, 'Environment the launch files need'), envRows] : null,
+    info.tools.length ? sections : h('p', { class: 'mute' }, 'Nothing to launch yet. Add the Gazebo module for a world, or open a ROS workspace that has launch files.')];
+  close = modal('Launch', body, [h('button', { class: 'quiet', title: 'Stop every running job', onclick: guard(stopAllJobs) }, '■ Stop all'), h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Close'),
+    h('button', { id: 'cfg-save-ticked', disabled: !info.tools.length, title: 'Save the ticked rows as a launch configuration you can edit', onclick: saveTicked }, 'Save ticked as configuration'),
+    h('button', { class: 'primary', id: 'launch-all', disabled: !info.tools.length || !info.display, title: 'Simulator first, then SLAM / viewers / teleop', onclick: stack }, '▶ Launch stack')]);
+}
+/* Unset variables that the default pick of some role actually reads. */
+const unsetNeeded = (info) => info.env.filter((e) => !e.value && info.tools.some((t) => t.primary && (t.env || []).includes(e.name))).map((e) => e.name);
+async function stopAllJobs() {
+  const live = S.jobs.filter((j) => j.running);
+  for (const j of live) await api('job/kill', { id: j.id }).catch(() => {});
+  toast(live.length ? 'Stopping ' + live.length + ' job' + (live.length > 1 ? 's' : '') + '.' : 'No jobs are running.', true);
+}
+/* Run a saved launch configuration: steps in order, jobs as tabs, terminal steps in integrated terminals. */
+async function runLaunch(name) {
+  const cfg = (S.proj.project.launch || []).find((c) => c.name === name);
+  if (!cfg) throw new Error('No launch configuration named ' + name);
+  S.lastRun = 'launch:' + name;
+  if (!S.tools) S.tools = await api('project/tools', { dir: dir() }).catch(() => null);
+  if (S.tools) {
+    const unset = new Set(S.tools.env.filter((e) => !e.value).map((e) => e.name));
+    const need = new Set();
+    for (const st of cfg.steps) { const t = S.tools.tools.find((x) => x.cmd === st.cmd); for (const n of (t && t.env) || []) if (unset.has(n)) need.add(n); }
+    if (need.size) { toast([...need].join(', ') + ' is not set, and steps of "' + name + '" need it. Pick a value at the top of the Launch dialog.'); await toolsDialog(); return; }
+  }
+  toast('Starting "' + name + '": ' + cfg.steps.map((x) => x.name).join(' → '), true);
+  let prev = null;
+  for (const st of cfg.steps) {
+    if (st.after_exit && prev) {
+      // Wait for the previous step's job to finish; stop the configuration if it failed.
+      while (prev.running) await new Promise((r) => setTimeout(r, 300));
+      if (prev.code !== 0) { toast('"' + prev.title + '" ended with exit code ' + prev.code + ', so the rest of "' + name + '" was not started.'); return; }
+    }
+    if (st.wait) await new Promise((r) => setTimeout(r, st.wait * 1000));
+    if (st.terminal) { await newTerminal({ cmd: st.cmd, title: st.name.replace(/^Control: /, '') }); prev = null; }
+    else {
+      const live = S.jobs.find((j) => j.title === st.name && j.running);
+      prev = live || addJob(await api('run', { dir: dir(), cmd: st.cmd, workspace: st.workspace, title: st.name }));
+    }
+  }
+}
+function launchEditor(index) {
+  const all = (S.proj.project.launch || []).map((c) => ({ name: c.name, steps: c.steps.map((x) => ({ ...x })) }));
+  const cfg = index >= 0 ? all[index] : { name: '', steps: [{ name: '', cmd: '' }] };
+  const wsKinds = [...new Set(S.proj.project.workspaces.map((w) => w.kind))];
+  const name = h('input', { type: 'text', class: 'grow', id: 'cfg-name', value: cfg.name, placeholder: 'e.g. Sim + SLAM + teleop', 'aria-label': 'Configuration name' });
+  const list = h('div', { class: 'steps' });
+  const draw = () => list.replaceChildren(...cfg.steps.map((st, i) => h('div', { class: 'row', 'data-step': i },
+    h('span', { class: 'mute mono', style: 'width:18px' }, i + 1),
+    h('input', { type: 'text', style: 'width:170px', value: st.name, placeholder: 'name (tab title)', 'aria-label': 'Step ' + (i + 1) + ' name', oninput: (e) => { st.name = e.target.value; } }),
+    h('input', { type: 'text', class: 'grow mono', value: st.cmd, placeholder: 'command, e.g. ros2 launch pkg file.launch.py   or   ./scripts/start.sh', 'aria-label': 'Step ' + (i + 1) + ' command', oninput: (e) => { st.cmd = e.target.value; } }),
+    h('select', { title: 'Folder the command runs in', 'aria-label': 'Step ' + (i + 1) + ' folder', onchange: (e) => { st.workspace = e.target.value || undefined; } }, h('option', { value: '' }, 'project'), wsKinds.map((k) => h('option', { value: k, selected: st.workspace === k }, k))),
+    h('select', { title: 'Job: output tab. Terminal: interactive, for keyboard input', 'aria-label': 'Step ' + (i + 1) + ' runs as', onchange: (e) => { st.terminal = e.target.value === 't' || undefined; } }, h('option', { value: 'j' }, 'job'), h('option', { value: 't', selected: !!st.terminal }, 'terminal')),
+    h('select', { disabled: i === 0, title: 'When this step starts: together with the others, or only once the previous step has finished (for a start command that returns when the simulator is up)', 'aria-label': 'Step ' + (i + 1) + ' starts', onchange: (e) => { st.after_exit = e.target.value === 'x' || undefined; } }, h('option', { value: 'n' }, 'right away'), h('option', { value: 'x', selected: !!st.after_exit }, 'after previous')),
+    h('input', { type: 'text', style: 'width:52px', value: st.wait || '', placeholder: 'wait s', title: 'Extra seconds to wait before starting this step', 'aria-label': 'Step ' + (i + 1) + ' wait seconds', oninput: (e) => { st.wait = Math.max(0, Math.min(600, parseInt(e.target.value, 10) || 0)) || undefined; } }),
+    h('button', { class: 'quiet', disabled: i === 0, 'aria-label': 'Move step up', title: 'Move up', onclick: () => { cfg.steps.splice(i - 1, 0, cfg.steps.splice(i, 1)[0]); draw(); } }, '↑'),
+    h('button', { class: 'quiet', disabled: i === cfg.steps.length - 1, 'aria-label': 'Move step down', title: 'Move down', onclick: () => { cfg.steps.splice(i + 1, 0, cfg.steps.splice(i, 1)[0]); draw(); } }, '↓'),
+    h('button', { class: 'quiet', 'aria-label': 'Remove step', title: 'Remove', onclick: () => { cfg.steps.splice(i, 1); draw(); } }, '×'))));
+  draw();
+  const detected = (S.tools && S.tools.tools) || [];
+  const addSel = h('select', { 'aria-label': 'Add a detected launch', onchange: () => { const t = detected.find((x) => x.id === addSel.value); addSel.value = ''; if (t) { cfg.steps.push({ name: t.name, cmd: t.cmd, workspace: t.workspace || undefined, terminal: t.terminal || undefined }); draw(); } } },
+    h('option', { value: '' }, 'Add detected…'), detected.map((t) => h('option', { value: t.id }, t.name + '  (' + t.detail + ')')));
+  const save = guard(async () => {
+    const out = { name: name.value.trim(), steps: cfg.steps.filter((x) => x.cmd.trim()).map((x) => ({ name: x.name.trim() || x.cmd.trim().slice(0, 40), cmd: x.cmd.trim(), workspace: x.workspace || undefined, terminal: x.terminal || undefined, wait: x.wait || undefined, after_exit: x.after_exit || undefined })) };
+    if (!out.name) { toast('Give the configuration a name.'); return; }
+    if (index >= 0) all[index] = out; else all.push(out);
+    S.proj = await api('project/launch', { dir: dir(), launch: all });
+    S.lastRun = 'launch:' + out.name; renderHeader(); close(); await toolsDialog();
+  });
+  const body = [h('label', { class: 'field' }, 'Name', name),
+    h('p', { class: 'hint' }, 'Steps start top to bottom inside the project environment (ROS, workspace overlays, your setup scripts and variables). A step can be any shell command: ros2 launch, ros2 run, a script, several commands joined with &&. Use "terminal" for anything that reads the keyboard, and "wait" to give a simulator time to come up.'),
+    list, h('div', { class: 'row', style: 'border:0' }, h('button', { id: 'step-add', onclick: () => { cfg.steps.push({ name: '', cmd: '' }); draw(); } }, '＋ Add command'), detected.length ? addSel : null)];
+  const close = modal(index >= 0 ? 'Edit launch configuration' : 'New launch configuration', body, [h('span', { class: 'grow' }), h('button', { onclick: guard(async () => { close(); await toolsDialog(); }) }, 'Cancel'), h('button', { class: 'primary', id: 'cfg-save', onclick: save }, 'Save')]);
+}
+/* Environment: which ROS setup to source, extra scripts, PATH / PYTHONPATH, build Python, variables. */
+const ENV_CHECK = 'echo "ROS_DISTRO   = ${ROS_DISTRO:-(not set)}"; echo "ros2         = $(command -v ros2 || echo not found)"; echo "colcon       = $(command -v colcon || echo not found)"; echo "python3      = $(command -v python3) ($(python3 --version 2>&1))"; echo "build jobs   = $RF_JOBS"; echo; echo "PATH (first 8):"; echo "$PATH" | tr ":" "\n" | head -8 | sed "s/^/  /"; echo "PYTHONPATH (first 8):"; echo "${PYTHONPATH:-(empty)}" | tr ":" "\n" | head -8 | sed "s/^/  /"; echo "AMENT_PREFIX_PATH (first 8):"; echo "${AMENT_PREFIX_PATH:-(empty)}" | tr ":" "\n" | head -8 | sed "s/^/  /"';
+function envDialog() {
+  const p = S.proj.project, st = p.setup || {};
+  const lines = (v) => (v || []).join('\n');
+  const area = (id, v, ph, rows) => h('textarea', { id, rows: rows || 2, spellcheck: false, placeholder: ph, value: v, 'aria-label': id });
+  const ros = h('input', { type: 'text', class: 'mono', id: 'set-ros', value: st.ros_setup || '', placeholder: 'empty = project SDK environment, or /opt/ros/<distro> if that is not synced' });
+  const src = area('set-source', lines(st.source), '~/my_underlay/install/setup.bash\nscripts/robot_env.zsh', 3);
+  const path = area('set-path', lines(st.path), '~/tools/bin');
+  const pyp = area('set-pythonpath', lines(st.pythonpath), 'python\n~/libs/mylib');
+  const py = h('input', { type: 'text', class: 'mono', id: 'set-python', value: st.python || '', placeholder: 'empty = python3 of the environment, e.g. /usr/bin/python3.12 or ~/venvs/ros/bin/python' });
+  const vars = area('set-env', Object.entries(p.env || {}).map(([k, v]) => k + '=' + v).join('\n'), 'ROS_DOMAIN_ID=7\nTURTLEBOT3_MODEL=burger\nRF_JOBS=4', 5);
+  const split = (t) => t.value.split('\n').map((x) => x.trim()).filter(Boolean);
+  const save = async () => {
+    const env = {};
+    for (const l of split(vars)) { const i = l.indexOf('='); if (i < 1) throw new Error('Variables must be NAME=value, one per line: ' + l); env[l.slice(0, i).trim()] = l.slice(i + 1).trim().replace(/^(["'])(.*)\1$/, '$2'); }
+    const setup = { ros_setup: ros.value.trim() || undefined, source: split(src), path: split(path), pythonpath: split(pyp), python: py.value.trim() || undefined };
+    S.proj = await api('project/setup', { dir: dir(), setup, env }); S.tools = null; renderHeader(); renderNotice();
+  };
+  const f = (label, ctl, hint) => [h('label', { class: 'field', style: 'grid-template-columns:170px 1fr;align-items:start' }, h('span', { style: 'padding-top:5px' }, label), ctl), h('p', { class: 'hint', style: 'margin-left:178px' }, hint)];
+  const body = [h('p', { class: 'mute' }, 'Applied every time something runs in this project: builds, run and launch configurations, and terminals. Paths can be absolute, start with ~/, or be relative to the project folder. Saved in roboforge.json.'),
+    f('ROS setup script', ros, 'Source this file instead of the project SDK environment, for example /opt/ros/jazzy/setup.bash or the setup file of a ROS you built from source.'),
+    f('Also source', src, 'One script per line, sourced in order after ROS and the workspace overlays: underlay workspaces, vendor SDK setup files, your own scripts. Activation runs in bash; for a .zsh file with a .bash sibling (as ROS ships) the .bash one is used.'),
+    f('PATH additions', path, 'One folder per line, put in front of PATH.'),
+    f('PYTHONPATH additions', pyp, 'One folder per line, put in front of PYTHONPATH.'),
+    f('Python for builds', py, 'Interpreter that colcon, CMake (FindPython3) and python3 should use. Its folder goes first on PATH.'),
+    f('Variables', vars, 'NAME=value, one per line, exported last so they win. RF_JOBS limits build parallelism.')];
+  const close = modal('Environment', body, [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'),
+    h('button', { id: 'env-check', title: 'Save, then print which ROS, python and paths the project environment resolves to', onclick: guard(async () => { await save(); close(); addJob(await api('run', { dir: dir(), cmd: ENV_CHECK, title: 'Environment check' })); }) }, 'Save and check'),
+    h('button', { class: 'primary', id: 'env-save', onclick: guard(async () => { await save(); close(); toast('Environment saved. New jobs and terminals use it.', true); }) }, 'Save')]);
+}
+async function announceTools() {
+  try {
+    const info = await api('project/tools', { dir: dir(), init: true });
+    S.tools = info;
+    if (info.project) { S.proj = info.project; if (info.created) S.lastRun = 'launch:' + info.created; renderHeader(); }
+    if (info.created) toast('Detected in this project: ' + info.summary + '.\nCreated the launch configuration "' + info.created + '": pick it in the Run menu, or open Launch to edit it.' + (unsetNeeded(info).length ? '\n' + unsetNeeded(info).join(', ') + ' still needs a value (Launch dialog).' : ''), true);
+    else if (info.summary && !(S.proj.project.launch || []).length) toast('Detected in this project: ' + info.summary + '.\nUse the Launch button to start them.' + (unsetNeeded(info).length ? '\n' + unsetNeeded(info).join(', ') + ' still needs a value.' : ''), true);
+  } catch (e) { /* detection is a convenience; opening the project must not fail on it */ }
+}
+async function syncSdks() { const j = addJob(await api('project/sync', { dir: dir() })); j.refresh = true; }
+
+/* ---------- projects ---------- */
+async function openProject(d) {
+  const p = await api('project/open', { dir: d });
+  S.proj = p; S.tabs = []; S.active = null; S.tree = {}; S.open = new Set(); S.vscOn = false; $('vscwrap').className = '';
+  await refreshTree();
+  document.title = p.project.name + ' · RoboForge';
+  renderHeader(); renderMain(); renderPanel();
+  if ((S.tree[key(null, '')] || []).some((e) => e.name === 'README.md')) await openFile(key(null, 'README.md'));
+  announceTools();
+}
+async function openDialog() {
+  const input = h('input', { type: 'text', class: 'mono', placeholder: S.boot.default_dir + '/my_robot' });
+  const go = guard(async (d) => { if (!d.trim()) return; await openProject(d); close(); });
+  const rosSel = h('select', {}, S.boot.catalog.components.filter((c) => c.category === 'ros').map((c) => h('option', { value: c.id, selected: c.id === 'ros2-jazzy' }, c.name)));
+  const init = guard(async () => { if (!input.value.trim()) return; const p = await api('project/init', { dir: input.value, ros: rosSel.value }); close(); S.boot = await api('boot'); await openProject(p.dir); });
+  const body = [h('label', { class: 'field' }, 'Folder', input), h('p', { class: 'mute' }, 'A project is any folder with a roboforge.json.'),
+    h('h3', {}, 'Or set up an existing ROS workspace in place'), h('p', { class: 'mute' }, 'Point at a colcon/catkin workspace (a folder with src/). Only roboforge.json and .roboforge/ are added; your packages are untouched. Modules can be mixed in afterwards.'),
+    h('div', { class: 'row' }, h('span', {}, 'ROS distro '), rosSel, h('span', { class: 'grow' }), h('button', { id: 'init-ws', onclick: init }, 'Set up this workspace'))];
+  body.push(h('h3', {}, 'Or import any existing project, leaving it untouched'),
+    h('p', { class: 'mute' }, 'For a folder that is not a RoboForge project yet: a ROS workspace, or a plain project with scripts, Python files, a Makefile, worlds. RoboForge inspects it, shows what it found, and keeps its own files in ' + S.boot.default_dir + '/<name>. Nothing is written into the folder you import.'),
+    h('div', { class: 'row' }, h('span', { class: 'grow' }), h('button', { id: 'import-btn', onclick: guard(async () => { if (!input.value.trim()) return; const src = input.value.trim(); close(); await importDialog(src); }) }, 'Import…')));
+  if (S.boot.recent.length) body.push(h('div', { class: 'recent' }, h('h3', {}, 'Recent'), S.boot.recent.map((d) => h('button', { onclick: () => go(d) }, d))));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(input.value); });
+  const close = modal('Open project', body, [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', onclick: () => go(input.value) }, 'Open')]);
+}
+/* Import: inspect a folder, show what will be created, then create the project next to the others. */
+async function importDialog(source) {
+  const pv = await api('project/import', { source, preview: true });
+  if (pv.exists) { toast('That folder is already imported as ' + pv.project_dir + '. Opening it.', true); await openProject(pv.project_dir); return; }
+  const name = h('input', { type: 'text', id: 'imp-name', value: pv.name, 'aria-label': 'Project name' });
+  const row = (k, v) => h('div', { class: 'field', style: 'grid-template-columns:190px 1fr;align-items:start' }, h('span', { class: 'mute' }, k), h('div', {}, v));
+  const stepText = (c) => c.steps.map((st, i) => (i && st.after_exit ? 'then ' : i && st.wait ? 'after ' + st.wait + ' s ' : '') + st.cmd).join('  →  ');
+  const body = [
+    row('Source folder', [h('span', { class: 'mono' }, pv.source), h('small', { class: 'status ok', style: 'display:block' }, 'Read only: nothing is created or changed in it.')]),
+    row('Detected', pv.kind + (pv.ros ? ' (' + pv.ros + ')' : ', no ROS')),
+    row('Project name', name),
+    row('RoboForge files go to', h('span', { class: 'mono' }, pv.project_dir.replace(/[^/]+$/, '') + '<name>/  (roboforge.json, .roboforge/)')),
+    row('Python interpreter', pv.python ? h('span', { class: 'mono' }, pv.python) : 'the environment default (change it under Environment)'),
+    row('Found', pv.roles.map((r) => r.count + ' × ' + (ROLE_NAMES[r.role] || r.role).toLowerCase()).join(', ') || 'nothing launchable'),
+    row('Launch configurations', pv.launch.length ? pv.launch.map((c) => h('div', { style: 'margin-bottom:6px' }, h('strong', {}, '🚀 ' + c.name), h('small', { class: 'mono mute', style: 'display:block' }, stepText(c)))) : 'none suggested; create your own in Launch'),
+    row('Run configurations', pv.run.length ? pv.run.map((r) => h('div', {}, r.name, ' ', h('small', { class: 'mono mute' }, r.cmd))) : 'none'),
+    pv.env.length ? row('Variables to set', pv.env.map((e) => e.name).join(', ')) : null,
+    pv.notes.length ? row('Notes', pv.notes.map((n) => h('div', { class: 'status bad', style: 'margin-bottom:4px' }, n))) : null,
+    h('p', { class: 'hint' }, 'Everything here can be changed afterwards in Launch and Environment.')];
+  const close = modal('Import project', body, [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'),
+    h('button', { class: 'primary', id: 'imp-go', onclick: guard(async () => {
+      const p = await api('project/import', { source, name: name.value.trim() });
+      close(); S.boot = await api('boot'); await openProject(p.dir);
+      const rep = p.import || {};
+      toast('Imported ' + p.project.name + '.' + ((rep.launch || []).length ? '\nLaunch configurations: ' + rep.launch.map((c) => c.name).join(', ') + '.' : '') + ((rep.notes || []).length ? '\n' + rep.notes.join('\n') : ''), true);
+    }) }, 'Import')]);
+}
+const CAT_LABELS = { ros: 'ROS distro (one per project)', autopilot: 'Autopilot and vehicle SDKs', simulator: 'Simulators', manipulation: 'Manipulation', navigation: 'Navigation', ml: 'ML and 3D vision', slam: 'SLAM',
+  simulation: 'Simulation', aerial: 'Aerial', learning: 'Learning and 3D vision', integration: 'Integration', drivers: 'Drivers' };
+const groupBy = (items) => { const m = new Map(); for (const it of items) { if (!m.has(it.category)) m.set(it.category, []); m.get(it.category).push(it); } return [...m.entries()]; };
+function picker(items, selected, onChange, badges) {
+  const boxes = {};
+  const el = h('div', {}, groupBy(items).map(([cat, list]) => [h('h3', {}, CAT_LABELS[cat] || cat), list.map((c) => {
+    const cb = h('input', { type: 'checkbox', 'data-id': c.id, checked: selected.has(c.id), onchange: () => { if (cb.checked) selected.add(c.id); else selected.delete(c.id); onChange(); } });
+    boxes[c.id] = cb;
+    return h('label', { class: 'comp' }, cb, h('span', {}, c.name, badges(c).map((b) => [' ', h('span', { class: 'badge' }, b)]), h('small', {}, c.summary + (c.notes ? ' ' + c.notes : ''))));
+  })]));
+  return { el, sync() { for (const [id, cb] of Object.entries(boxes)) cb.checked = selected.has(id); } };
+}
+const componentPicker = (selected, onChange, skipRos) => picker(S.boot.catalog.components.filter((c) => !skipRos || c.category !== 'ros'), selected, onChange,
+  (c) => [c.version, c.gpu && 'GPU', c.own_env && 'own env'].filter(Boolean));
+const modulePicker = (selected, onChange) => picker(S.boot.modules, selected, onChange,
+  (m) => [m.ros === 'ros2' && 'needs ROS 2', m.ros === 'ros1' && 'needs ROS 1', m.requires.length && 'adds ' + m.requires.join(', '), !m.builtin && 'yours'].filter(Boolean));
+function planStatus(target, endpoint) {
+  let seq = 0;
+  return async (body) => {
+    const mine = ++seq;
+    if (endpoint === 'sdk/plan' && !body.components.length) { target.className = 'status mute'; target.textContent = 'Nothing selected.'; return false; }
+    try {
+      const r = await api(endpoint, body);
+      if (mine !== seq) return true;
+      const envs = [r.resolution.main_env, ...r.resolution.own_envs].filter(Boolean).map((e) => e.name);
+      target.className = 'status ' + (r.units.length ? 'mute' : 'ok');
+      target.replaceChildren(r.components ? h('div', {}, 'SDKs: ' + (r.components.join(', ') || 'none') + '.') : null, h('div', {}, (envs.length ? 'Environment' + (envs.length > 1 ? 's' : '') + ': ' + envs.join(', ') + '. ' : '') + (r.units.length ? r.units.length + ' install step(s) pending:' : 'All of this is already installed.')),
+        r.units.length ? h('ol', { class: 'plan' }, r.units.map((u) => h('li', {}, u.label))) : null);
+      return true;
+    } catch (e) { if (mine === seq) { target.className = 'status bad'; target.textContent = e.message; } return false; }
+  };
+}
+async function newProject() {
+  const rosComps = S.boot.catalog.components.filter((c) => c.category === 'ros');
+  let preset = S.boot.presets[0], touchedDir = false;
+  const mods = new Set(), extra = new Set();
+  const name = h('input', { type: 'text', id: 'np-name', value: 'my_robot' });
+  const loc = h('input', { type: 'text', id: 'np-loc', class: 'mono' });
+  const ros = h('select', { id: 'np-ros' }, h('option', { value: '' }, 'No ROS'), rosComps.map((c) => h('option', { value: c.id }, c.name)));
+  const status = h('div', { class: 'status mute', id: 'np-status', role: 'status' });
+  const plan = planStatus(status, 'project/plan');
+  const wsMode = h('select', { id: 'np-wsmode' }, h('option', { value: 'new' }, 'New ROS workspace inside the project (ros2_ws/)'), h('option', { value: 'reuse' }, 'Reuse an existing ROS workspace'));
+  const wsPath = h('input', { type: 'text', id: 'np-wspath', class: 'mono', placeholder: '~/ros2_ws', style: 'display:none' });
+  wsMode.addEventListener('change', () => { wsPath.style.display = wsMode.value === 'reuse' ? '' : 'none'; });
+  const body = () => ({ ros: ros.value, modules: [...mods], components: [...extra], ros_workspace: ros.value && wsMode.value === 'reuse' ? wsPath.value : '' });
+  const check = () => plan(body());
+  const slug = () => name.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'project';
+  const setLoc = () => { if (!touchedDir) loc.value = S.boot.default_dir + '/' + slug(); };
+  const modPick = modulePicker(mods, check), extraPick = componentPicker(extra, check, true);
+  const cards = h('div', { class: 'cards', role: 'radiogroup', 'aria-label': 'Preset' });
+  const apply = () => {
+    mods.clear(); extra.clear();
+    preset.modules.forEach((m) => mods.add(m)); preset.components.forEach((c) => extra.add(c));
+    const cur = rosComps.find((c) => c.id === ros.value);
+    if (preset.ros === 'none') ros.value = '';
+    else if (preset.ros === 'ros1') ros.value = 'ros1-noetic';
+    else if (!cur || cur.ros_version !== 2) ros.value = 'ros2-jazzy';
+    modPick.sync(); extraPick.sync(); check();
+    cards.replaceChildren(...S.boot.presets.map((p) => h('button', { class: 'card' + (p === preset ? ' on' : ''), role: 'radio', 'data-preset': p.id, 'aria-checked': String(p === preset), onclick: () => { preset = p; apply(); } }, h('strong', {}, p.name), h('span', {}, p.summary))));
+  };
+  name.addEventListener('input', setLoc);
+  loc.addEventListener('input', () => { touchedDir = true; });
+  ros.addEventListener('change', check);
+  setLoc(); apply();
+  const create = guard(async () => {
+    const p = await api('project/new', { dir: loc.value, name: name.value, ...body() });
+    close(); S.boot = await api('boot'); await openProject(p.dir);
+  });
+  const close = modal('New project', [
+    h('label', { class: 'field' }, 'Name', name), h('label', { class: 'field' }, 'Location', loc), h('label', { class: 'field' }, 'ROS', ros),
+    h('div', { class: 'field' }, 'ROS workspace', h('div', {}, wsMode, ' ', wsPath)),
+    h('p', { class: 'mute' }, 'Other kinds of work get their own folders automatically: mav_ws/ for standalone MAVSDK and PX4 apps, sim/ for simulator assets, ml/ for training code, isaac/ for Isaac Sim. Change them later under Workspaces.'),
+    h('h3', {}, 'Start from'), cards,
+    h('h3', {}, 'Modules: mix any of these. Each brings its SDKs, files and run configurations, and more can be added later.'), modPick.el,
+    h('details', {}, h('summary', {}, 'Extra SDK components (a specific PX4 or PyTorch build, source checkouts)'), extraPick.el)],
+    [h('div', { class: 'grow' }, status), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', id: 'np-create', onclick: create }, 'Create project')]);
+}
+async function modulesDialog() {
+  const p = S.proj.project;
+  const mods = new Set(p.modules);
+  const status = h('div', { class: 'status mute', id: 'md-status', role: 'status' });
+  const plan = planStatus(status, 'project/plan');
+  const ros = p.ros || (S.proj.components || []).find((c) => c.startsWith('ros')) || '';
+  const check = () => plan({ ros, modules: [...mods], components: p.components.filter((c) => c !== ros) });
+  const pick = modulePicker(mods, check);
+  check();
+  const applyChange = guard(async () => {
+    if (S.tabs.some((t) => dirty(t))) throw new Error('Save or close your unsaved files first: applying modules rewrites roboforge.json and the package manifests.');
+    const r = await api('project/modules', { dir: dir(), modules: [...mods] });
+    close(); S.proj = r; renderHeader(); renderNotice(); await refreshTree(); await reloadTabs();
+    const lines = ['Modules: ' + (r.project.modules.join(', ') || 'none')];
+    if (r.written.length) lines.push('Created: ' + r.written.join(', '));
+    if (r.left.length) lines.push('Left in place (delete if unwanted): ' + r.left.join(', '));
+    toast(lines.join('\n'), true);
+  });
+  const close = modal('Modules in ' + p.name, [
+    h('p', { class: 'mute' }, 'Adding a module creates its files (never overwriting yours), registers its nodes and dependencies in the package, and adds its run configurations. Removing one takes those out again but leaves its files. Your own modules live in ', h('span', { class: 'mono' }, S.boot.modules_dir), '.'),
+    pick.el],
+    [h('div', { class: 'grow' }, status), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', id: 'md-apply', onclick: applyChange }, 'Apply')]);
+}
+
+/* ---------- SDK manager ---------- */
+async function sdkManager() {
+  S.boot = await api('boot');
+  const selected = new Set();
+  const status = h('div', { class: 'status mute', role: 'status' }, 'Tick components to install them together as one isolated environment.');
+  const plan = planStatus(status, 'sdk/plan');
+  const check = (components) => plan({ components });
+  const installed = h('div', {});
+  const drawInstalled = () => {
+    const st = S.boot.state, rows = [];
+    for (const [env, members] of Object.entries(st.envs)) rows.push(h('div', { class: 'row' }, h('span', { class: 'mono grow' }, env, h('small', { class: 'mute' }, '  ' + members.filter((m) => m !== '@created').join(', '))),
+      h('button', { onclick: guard(async () => { if (!confirm('Delete environment ' + env + '? Projects pinned to it will need Sync SDKs again.')) return; S.boot.state = (await api('sdk/remove', { env })).state; drawInstalled(); }) }, 'Remove')));
+    for (const id of st.sdks) rows.push(h('div', { class: 'row' }, h('span', { class: 'mono grow' }, 'source: ' + id),
+      h('button', { onclick: guard(async () => { if (!confirm('Delete the ' + id + ' checkout?')) return; S.boot.state = (await api('sdk/remove', { sdk: id })).state; drawInstalled(); }) }, 'Remove')));
+    installed.replaceChildren(...(rows.length ? rows : [h('p', { class: 'mute' }, 'Nothing installed yet. Creating a project and pressing Sync SDKs is the usual way to get started.')]));
+  };
+  drawInstalled();
+  const picker = componentPicker(selected, () => check([...selected]));
+  const install = guard(async () => { if (!(await check([...selected]))) return; const j = addJob(await api('sdk/install', { components: [...selected] })); j.refresh = true; close(); });
+  const close = modal('SDK Manager', [
+    h('p', { class: 'mute' }, 'SDK home: ', h('span', { class: 'mono' }, S.boot.home), '. ' + (S.boot.catalog_override ? 'Using your catalog.json override.' : 'To change versions or add components, put an edited copy of the catalog at catalog.json in this folder.')),
+    h('h3', {}, 'Installed'), installed, h('h3', {}, 'Available'), picker.el],
+    [h('div', { class: 'grow' }, status), h('button', { onclick: () => close() }, 'Close'), h('button', { class: 'primary', onclick: install }, 'Install selection')]);
+}
+
+/* ---------- boot ---------- */
+function loadCodeMirror() {
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/';
+  const script = (src) => new Promise((ok, no) => { const s = h('script', { src }); s.onload = ok; s.onerror = no; document.head.append(s); });
+  const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 2500));
+  const load = (async () => {
+    document.head.append(h('link', { rel: 'stylesheet', href: base + 'codemirror.min.css' }));
+    await script(base + 'codemirror.min.js');
+    await script(base + 'addon/mode/simple.min.js');  // the rust and toml modes are built on it
+    await Promise.all(['python', 'xml', 'clike', 'cmake', 'shell', 'yaml', 'javascript', 'rust', 'toml', 'markdown'].map((m) => script(base + 'mode/' + m + '/' + m + '.min.js')));
+    S.cm = true;
+  })();
+  return Promise.race([load, timeout]).catch(() => { S.cm = false; });  // offline: plain editor
+}
+async function boot() {
+  try {
+    [S.boot] = await Promise.all([api('boot'), loadCodeMirror()]);
+    renderHeader(); renderMain(); renderPanel();
+    setInterval(() => pollJobs(), 400);
+    setInterval(() => pollTerms(), 60);
+  } catch (e) { $('main').textContent = 'RoboForge backend is not reachable: ' + e.message; }
+}
+boot();
+</script>
+</body>
+</html>

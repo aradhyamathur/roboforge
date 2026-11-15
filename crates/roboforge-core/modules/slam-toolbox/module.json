@@ -1,0 +1,38 @@
+{
+  "id": "slam-toolbox",
+  "name": "slam_toolbox",
+  "category": "slam",
+  "summary": "2D lidar SLAM; combines with Nav2 for mapping while navigating.",
+  "ros": "ros2",
+  "components": [
+    "slam-toolbox"
+  ],
+  "run": [
+    {
+      "name": "SLAM: slam_toolbox (online async)",
+      "cmd": "ros2 launch slam_toolbox online_async_launch.py use_sim_time:=True",
+      "workspace": "ros"
+    },
+    {
+      "name": "SLAM: save map",
+      "cmd": "mkdir -p maps && ros2 run nav2_map_server map_saver_cli -f maps/map",
+      "when": [
+        "mod:nav2"
+      ],
+      "workspace": "ros"
+    }
+  ],
+  "launch": [
+    {
+      "name": "slam",
+      "description": "slam_toolbox online async mapping",
+      "include": {
+        "package": "slam_toolbox",
+        "file": "launch/online_async_launch.py",
+        "args": {
+          "use_sim_time": "true"
+        }
+      }
+    }
+  ]
+}

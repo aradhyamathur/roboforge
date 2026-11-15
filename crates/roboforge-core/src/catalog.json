@@ -1,0 +1,511 @@
+{
+ "schema": 1,
+ "components": [
+  {
+   "id": "ros1-noetic",
+   "name": "ROS 1 Noetic",
+   "category": "ros",
+   "version": "noetic",
+   "group": "ros",
+   "distro": "noetic",
+   "ros_version": 1,
+   "summary": "ROS 1 desktop via RoboStack. Runs on any modern distro, no Ubuntu 20.04 needed.",
+   "conda": {
+    "channels": [
+     "robostack-noetic"
+    ],
+    "specs": [
+     "ros-noetic-desktop",
+     "catkin_tools",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "ros2-humble",
+   "name": "ROS 2 Humble",
+   "category": "ros",
+   "version": "humble",
+   "group": "ros",
+   "distro": "humble",
+   "ros_version": 2,
+   "summary": "ROS 2 Humble desktop (LTS) via RoboStack.",
+   "conda": {
+    "channels": [
+     "robostack-humble"
+    ],
+    "specs": [
+     "ros-humble-desktop",
+     "colcon-common-extensions",
+     "rosdep",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "ros2-jazzy",
+   "name": "ROS 2 Jazzy",
+   "category": "ros",
+   "version": "jazzy",
+   "group": "ros",
+   "distro": "jazzy",
+   "ros_version": 2,
+   "summary": "ROS 2 Jazzy desktop (LTS) via RoboStack.",
+   "conda": {
+    "channels": [
+     "robostack-jazzy"
+    ],
+    "specs": [
+     "ros-jazzy-desktop",
+     "colcon-common-extensions",
+     "rosdep",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "ros2-kilted",
+   "name": "ROS 2 Kilted",
+   "category": "ros",
+   "version": "kilted",
+   "group": "ros",
+   "distro": "kilted",
+   "ros_version": 2,
+   "summary": "ROS 2 Kilted desktop via RoboStack.",
+   "conda": {
+    "channels": [
+     "robostack-kilted"
+    ],
+    "specs": [
+     "ros-kilted-desktop",
+     "colcon-common-extensions",
+     "rosdep",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "ros2-lyrical",
+   "name": "ROS 2 Lyrical",
+   "category": "ros",
+   "version": "lyrical",
+   "group": "ros",
+   "distro": "lyrical",
+   "ros_version": 2,
+   "summary": "ROS 2 Lyrical desktop via RoboStack.",
+   "conda": {
+    "channels": [
+     "robostack-lyrical"
+    ],
+    "specs": [
+     "ros-lyrical-desktop",
+     "colcon-common-extensions",
+     "rosdep",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "ros2-rolling",
+   "name": "ROS 2 Rolling",
+   "category": "ros",
+   "version": "rolling",
+   "group": "ros",
+   "distro": "rolling",
+   "ros_version": 2,
+   "summary": "ROS 2 Rolling desktop via RoboStack.",
+   "conda": {
+    "channels": [
+     "robostack-rolling"
+    ],
+    "specs": [
+     "ros-rolling-desktop",
+     "colcon-common-extensions",
+     "rosdep",
+     "compilers",
+     "cmake",
+     "make",
+     "ninja",
+     "pkg-config"
+    ]
+   }
+  },
+  {
+   "id": "px4-1.16",
+   "name": "PX4 Autopilot 1.16",
+   "category": "autopilot",
+   "version": "1.16",
+   "group": "px4",
+   "summary": "PX4 source tree for SITL and firmware work.",
+   "source": {
+    "git": "https://github.com/PX4/PX4-Autopilot.git",
+    "rev": "v1.16.0",
+    "recursive": true
+   },
+   "conda": {
+    "specs": [
+     "compilers",
+     "cmake",
+     "make",
+     "ninja"
+    ]
+   },
+   "pip": [
+    [
+     "-r",
+     "{sdk}/Tools/setup/requirements.txt"
+    ]
+   ],
+   "env": {
+    "PX4_DIR": "{sdk}"
+   },
+   "notes": "SITL with Gazebo is built against the Gazebo in the same environment. Building PX4's gz plugins against conda-forge Gazebo has not been validated by RoboForge; if it fails, fall back to PX4's Tools/setup/ubuntu.sh on the host."
+  },
+  {
+   "id": "px4-1.15",
+   "name": "PX4 Autopilot 1.15",
+   "category": "autopilot",
+   "version": "1.15",
+   "group": "px4",
+   "summary": "Previous PX4 release, installable side by side with 1.16.",
+   "source": {
+    "git": "https://github.com/PX4/PX4-Autopilot.git",
+    "rev": "v1.15.4",
+    "recursive": true
+   },
+   "conda": {
+    "specs": [
+     "compilers",
+     "cmake",
+     "make",
+     "ninja"
+    ]
+   },
+   "pip": [
+    [
+     "-r",
+     "{sdk}/Tools/setup/requirements.txt"
+    ]
+   ],
+   "env": {
+    "PX4_DIR": "{sdk}"
+   }
+  },
+  {
+   "id": "microxrce-agent",
+   "name": "Micro XRCE-DDS Agent",
+   "category": "autopilot",
+   "version": "2.4.3",
+   "summary": "Bridge between PX4 uORB topics and ROS 2 (/fmu/in, /fmu/out).",
+   "source": {
+    "git": "https://github.com/eProsima/Micro-XRCE-DDS-Agent.git",
+    "rev": "v2.4.3",
+    "post": [
+     "cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$PWD/install",
+     "cmake --build build -j$(nproc)",
+     "cmake --install build"
+    ]
+   },
+   "conda": {
+    "specs": [
+     "compilers",
+     "cmake",
+     "make"
+    ]
+   },
+   "env": {
+    "PATH": "{sdk}/install/bin:$PATH",
+    "LD_LIBRARY_PATH": "{sdk}/install/lib:${LD_LIBRARY_PATH:-}"
+   }
+  },
+  {
+   "id": "mavsdk",
+   "name": "MAVSDK-Python",
+   "category": "autopilot",
+   "version": "latest",
+   "summary": "MAVLink SDK for any MAVSDK-compatible vehicle (PX4, ArduPilot). Works with or without ROS.",
+   "pip": [
+    [
+     "mavsdk"
+    ]
+   ]
+  },
+  {
+   "id": "moveit",
+   "name": "MoveIt",
+   "category": "manipulation",
+   "version": "distro",
+   "requires": [
+    "group:ros"
+   ],
+   "summary": "Motion planning for manipulators, with the Panda demo configuration.",
+   "conda": {
+    "with_ros2": [
+     "ros-{ros_distro}-moveit",
+     "ros-{ros_distro}-moveit-resources-panda-moveit-config"
+    ],
+    "with_ros1": [
+     "ros-{ros_distro}-moveit",
+     "ros-{ros_distro}-moveit-resources-panda-moveit-config"
+    ]
+   },
+   "notes": "Package availability on RoboStack varies by distro."
+  },
+  {
+   "id": "nav2",
+   "name": "Nav2",
+   "category": "navigation",
+   "version": "distro",
+   "requires": [
+    "group:ros"
+   ],
+   "summary": "ROS 2 navigation stack with nav2_bringup and the TurtleBot3 simulation.",
+   "conda": {
+    "with_ros2": [
+     "ros-{ros_distro}-navigation2",
+     "ros-{ros_distro}-nav2-bringup"
+    ]
+   },
+   "notes": "Package availability on RoboStack varies by distro."
+  },
+  {
+   "id": "gazebo",
+   "name": "Gazebo (gz-sim)",
+   "category": "simulator",
+   "version": "harmonic",
+   "summary": "Gazebo simulator. In a ROS environment it comes through ros_gz so the versions match.",
+   "conda": {
+    "with_ros2": [
+     "ros-{ros_distro}-ros-gz"
+    ],
+    "with_ros1": [
+     "ros-{ros_distro}-gazebo-ros-pkgs"
+    ],
+    "without_ros": [
+     "gz-sim8"
+    ]
+   }
+  },
+  {
+   "id": "mujoco",
+   "name": "MuJoCo",
+   "category": "simulator",
+   "version": "3.x",
+   "summary": "MuJoCo physics with Python bindings and the passive viewer.",
+   "pip": [
+    [
+     "mujoco"
+    ]
+   ]
+  },
+  {
+   "id": "isaac-sim",
+   "name": "Isaac Sim 5.1",
+   "category": "simulator",
+   "version": "5.1.0",
+   "own_env": "isaac",
+   "python": "3.11",
+   "gpu": true,
+   "summary": "NVIDIA Isaac Sim pip packages in a dedicated environment.",
+   "pip": [
+    [
+     "isaacsim[all,extscache]==5.1.0",
+     "--extra-index-url",
+     "https://pypi.nvidia.com"
+    ]
+   ],
+   "notes": "Needs an RTX GPU and GLIBC 2.35+. Lives in its own environment because Isaac Sim pins its dependency set; it talks to your ROS environment over DDS. You accept the NVIDIA EULA on first launch."
+  },
+  {
+   "id": "isaac-lab",
+   "name": "Isaac Lab",
+   "category": "simulator",
+   "version": "main",
+   "own_env": "isaac",
+   "requires": [
+    "isaac-sim"
+   ],
+   "gpu": true,
+   "summary": "Robot learning framework on Isaac Sim, installed into the Isaac environment.",
+   "source": {
+    "git": "https://github.com/isaac-sim/IsaacLab.git",
+    "post": [
+     "./isaaclab.sh --install"
+    ]
+   },
+   "env": {
+    "ISAACLAB_DIR": "{sdk}"
+   }
+  },
+  {
+   "id": "torch-cu128",
+   "name": "PyTorch (CUDA 12.8)",
+   "category": "ml",
+   "version": "latest",
+   "group": "torch",
+   "python": "3.11",
+   "gpu": true,
+   "summary": "PyTorch and torchvision wheels built for CUDA 12.8.",
+   "pip": [
+    [
+     "torch",
+     "torchvision",
+     "--index-url",
+     "https://download.pytorch.org/whl/cu128"
+    ]
+   ]
+  },
+  {
+   "id": "torch-cpu",
+   "name": "PyTorch (CPU)",
+   "category": "ml",
+   "version": "latest",
+   "group": "torch",
+   "python": "3.11",
+   "summary": "CPU-only PyTorch and torchvision.",
+   "pip": [
+    [
+     "torch",
+     "torchvision",
+     "--index-url",
+     "https://download.pytorch.org/whl/cpu"
+    ]
+   ]
+  },
+  {
+   "id": "pytorch3d",
+   "name": "PyTorch3D",
+   "category": "ml",
+   "version": "stable",
+   "requires": [
+    "group:torch"
+   ],
+   "summary": "Differentiable rendering and 3D ops, built from source against the installed PyTorch.",
+   "conda": {
+    "specs": [
+     "compilers"
+    ]
+   },
+   "pip": [
+    [
+     "fvcore",
+     "iopath"
+    ],
+    [
+     "git+https://github.com/facebookresearch/pytorch3d.git@stable"
+    ]
+   ],
+   "notes": "Compiles from source (10-20 min). A GPU build needs the CUDA toolkit (nvcc) visible in the environment."
+  },
+  {
+   "id": "gsplat",
+   "name": "gsplat",
+   "category": "ml",
+   "version": "latest",
+   "requires": [
+    "group:torch"
+   ],
+   "gpu": true,
+   "summary": "3D Gaussian Splatting rasterisation for PyTorch.",
+   "pip": [
+    [
+     "gsplat"
+    ]
+   ],
+   "notes": "May compile its CUDA kernels on first import if no prebuilt wheel matches your PyTorch/CUDA pair."
+  },
+  {
+   "id": "open3d",
+   "name": "Open3D",
+   "category": "ml",
+   "version": "latest",
+   "summary": "Point cloud and mesh processing, visualisation.",
+   "pip": [
+    [
+     "open3d"
+    ]
+   ]
+  },
+  {
+   "id": "slam-toolbox",
+   "name": "slam_toolbox",
+   "category": "slam",
+   "version": "distro",
+   "requires": [
+    "group:ros"
+   ],
+   "summary": "2D lidar SLAM for ROS 2.",
+   "conda": {
+    "with_ros2": [
+     "ros-{ros_distro}-slam-toolbox"
+    ]
+   },
+   "notes": "Package availability on RoboStack varies by distro."
+  },
+  {
+   "id": "monogs",
+   "name": "MonoGS (Gaussian Splatting SLAM)",
+   "category": "slam",
+   "version": "main",
+   "gpu": true,
+   "summary": "Source checkout of MonoGS for monocular/RGB-D Gaussian SLAM research.",
+   "source": {
+    "git": "https://github.com/muskie82/MonoGS.git",
+    "recursive": true
+   },
+   "env": {
+    "MONOGS_DIR": "{sdk}"
+   },
+   "notes": "Checked out only. Its own Python requirements are not installed automatically."
+  },
+  {
+   "id": "splatam",
+   "name": "SplaTAM",
+   "category": "slam",
+   "version": "main",
+   "gpu": true,
+   "summary": "Source checkout of SplaTAM dense RGB-D Gaussian SLAM.",
+   "source": {
+    "git": "https://github.com/spla-tam/SplaTAM.git"
+   },
+   "env": {
+    "SPLATAM_DIR": "{sdk}"
+   },
+   "notes": "Checked out only. Its own Python requirements are not installed automatically."
+  },
+  {
+   "id": "orb-slam3",
+   "name": "ORB-SLAM3",
+   "category": "slam",
+   "version": "master",
+   "summary": "Source checkout of ORB-SLAM3 (visual / visual-inertial SLAM).",
+   "source": {
+    "git": "https://github.com/UZ-SLAMLab/ORB_SLAM3.git"
+   },
+   "env": {
+    "ORB_SLAM3_DIR": "{sdk}"
+   },
+   "notes": "Checked out only. Build with its build.sh (needs Pangolin, OpenCV, Eigen)."
+  }
+ ]
+}

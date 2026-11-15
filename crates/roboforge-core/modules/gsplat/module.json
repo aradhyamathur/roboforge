@@ -1,0 +1,26 @@
+{
+  "id": "gsplat",
+  "name": "Gaussian splatting (gsplat)",
+  "category": "learning",
+  "summary": "Fit 3D Gaussians to an image with gsplat.",
+  "requires": [
+    "torch"
+  ],
+  "components": [
+    "gsplat"
+  ],
+  "files": [
+    {
+      "src": "fit_splats.py",
+      "workspace": "ml",
+      "dest": "fit_splats.py"
+    }
+  ],
+  "run": [
+    {
+      "name": "ML: fit Gaussian splats (gsplat)",
+      "cmd": "python fit_splats.py",
+      "workspace": "ml"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "px4-offboard",
+  "name": "PX4 offboard (uXRCE-DDS)",
+  "category": "aerial",
+  "summary": "ROS 2 offboard control node talking to PX4 through px4_msgs and the XRCE agent.",
+  "ros": "ros2",
+  "requires": [
+    "px4-sitl"
+  ],
+  "components": [
+    "microxrce-agent"
+  ],
+  "depends": [
+    "px4_msgs"
+  ],
+  "files": [
+    {
+      "src": "offboard.py",
+      "dest": "@PKGDIR@/@PKG@/offboard.py",
+      "workspace": "ros"
+    }
+  ],
+  "run": [
+    {
+      "name": "PX4: fetch px4_msgs",
+      "cmd": "[ -d src/px4_msgs ] || git clone --depth 1 -b @PX4_BRANCH@ https://github.com/PX4/px4_msgs.git src/px4_msgs",
+      "workspace": "ros"
+    },
+    {
+      "name": "PX4: uXRCE-DDS agent",
+      "cmd": "MicroXRCEAgent udp4 -p 8888"
+    },
+    {
+      "name": "PX4: offboard demo",
+      "cmd": "ros2 run @PKG@ offboard",
+      "workspace": "ros"
+    }
+  ]
+}
