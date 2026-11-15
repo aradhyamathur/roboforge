@@ -75,6 +75,32 @@ class Link(Component):
     def after_step(self, t: float) -> None:
         pass
 
+    # What arrives from outside is not trusted: a bad message is dropped with a
+    # warning, never passed on to crash a controller or the simulation.
+    dropped: int = 0
+
+    def reject(self, what: str, why: str) -> None:
+        """Count a dropped incoming message and say so, at most once every few seconds per kind."""
+        import time
+        self.dropped += 1
+        last = self.__dict__.setdefault("_warned", {})
+        now = time.monotonic()
+        seen, since = last.get(what, (0, -1e9))
+        if now - since > 5.0:
+            more = f" ({seen} more like it since the last warning)" if seen else ""
+            print(f"roboforge: {self.name or type(self).__name__} link ignored {what}: {why}{more}", flush=True)
+            last[what] = (0, now)
+        else:
+            last[what] = (seen + 1, since)
+
+    @staticmethod
+    def finite(*values) -> bool:
+        import numpy as np
+        try:
+            return all(bool(np.all(np.isfinite(np.asarray(v, float)))) for v in values if v is not None)
+        except (TypeError, ValueError):
+            return False
+
 
 class Callback(Component):
     """Hooks around the loop: recording, viewing, monitoring."""

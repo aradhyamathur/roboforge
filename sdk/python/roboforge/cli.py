@@ -62,6 +62,20 @@ def _info(config, overrides, steps: int) -> dict:
 
 
 def main(argv=None) -> int:
+    """Run a command. Mistakes in a config, missing files and packages, ports in use and a
+    simulation that blows up are reported in one line; an exception from the user's own
+    code keeps its traceback, because the line number is what they need."""
+    from .errors import ConfigError, SimulationError
+    try:
+        return _main(argv)
+    except (ConfigError, SimulationError, ImportError, OSError) as e:
+        text = str(e) if not isinstance(e, FileNotFoundError) or e.filename is None else f"no such file: {e.filename}"
+        notes = " ".join(getattr(e, "__notes__", []))
+        print(f"roboforge: error: {text}{' ' + notes if notes else ''}", file=sys.stderr, flush=True)
+        return 2
+
+
+def _main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m roboforge", description="RoboForge SDK")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="run an app from a config file")
@@ -85,7 +99,13 @@ def main(argv=None) -> int:
     ex.add_argument("--format", required=True, choices=["nerfstudio", "tum"])
     ex.add_argument("--out", required=True)
     ex.add_argument("--camera")
-    a = ap.parse_args(argv)
+    # Overrides may come before or after the options (`run app.yaml --headless physics.substeps=2`).
+    a, extra = ap.parse_known_args(argv)
+    if extra:
+        if a.cmd in ("run", "info") and not any(x.startswith("-") for x in extra):
+            a.overrides = list(a.overrides) + extra
+        else:
+            ap.error(f"unrecognized arguments: {' '.join(extra)}")
 
     if a.cmd == "doctor":
         rep = doctor()
@@ -144,17 +164,17 @@ def main(argv=None) -> int:
             raise KeyboardInterrupt
         signal.signal(signal.SIGINT, stop)
         signal.signal(signal.SIGTERM, stop)
-        failed = None
         try:
             app.run(duration=duration)
-        except (ConnectionError, TimeoutError) as e:       # e.g. the autopilot never connected, or went away
-            failed = e
+        except BaseException:
+            print(f"roboforge: stopped at t={app.time:.2f}s after {app.steps} steps, on an error", flush=True)
+            raise
         finally:
             t = app.time
-            app.close()
-        if failed is not None:
-            print(f"roboforge: stopped at t={t:.2f}s: {failed}", flush=True)
-            return 1
+            try:
+                app.close()
+            except Exception as e:              # do not let a failing shutdown hide the real error
+                print(f"roboforge: while closing: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         print(f"roboforge: stopped at t={t:.2f}s after {app.steps} steps", flush=True)
         return 0
     return 2

@@ -33,7 +33,10 @@ class MultirotorController(Controller):
     def setup(self, app):
         alloc = getattr(app.physics, "allocation", None)
         if alloc is None:
-            raise RuntimeError("MultirotorController needs a physics backend that reports rotor allocation (MujocoPhysics does).")
+            from ..errors import ConfigError
+            what = f"{app.robot.name} is not one" if app.robot else "this app has no robot"
+            raise ConfigError(f"the multirotor controller flies a multirotor, and {what}: it needs a model whose "
+                              f"actuators are rotors (motors attached to sites), simulated by the mujoco physics backend.")
         self.A = np.asarray(alloc["matrix"], float)          # [Fz, tx, ty, tz] = A @ ctrl
         self.A_inv = np.linalg.pinv(self.A)
         self.mass = float(alloc["mass"])
@@ -60,8 +63,11 @@ class MultirotorController(Controller):
             if self._hold is None:
                 self._hold = self.hover if self.hover is not None else pose.position.copy()
             sp = msgs.Setpoint(position=self._hold)
+        for what, v in (("position", sp.position), ("velocity", sp.velocity), ("yaw", sp.yaw)):
+            if v is not None and not np.all(np.isfinite(np.asarray(v, float))):
+                raise ValueError(f"cmd/setpoint has nan or inf in its {what}: {v}")
         R = quat_to_mat(pose.orientation)
-        vel_ff = np.zeros(3) if sp.velocity is None else np.asarray(sp.velocity, float)
+        vel_ff = np.zeros(3) if sp.velocity is None else np.clip(np.asarray(sp.velocity, float), -self.max_speed, self.max_speed)
         if sp.position is not None:
             e_pos = np.asarray(sp.position, float) - pose.position
             self._int = np.clip(self._int + e_pos * dt, -2.0, 2.0)

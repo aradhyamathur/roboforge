@@ -75,5 +75,5 @@ links:
   - {{type: mavlink, mode: hil, url: "tcpin:127.0.0.1:{port}", connect_timeout: 0.5}}
 """)
     out = cli("run", "app.yaml", "--headless", "--duration", "1", cwd=tmp_path)
-    assert out.returncode == 1
-    assert "no autopilot connected" in out.stdout and "Traceback" not in out.stdout + out.stderr
+    assert out.returncode == 2
+    assert "no autopilot connected" in out.stderr and "Traceback" not in out.stdout + out.stderr

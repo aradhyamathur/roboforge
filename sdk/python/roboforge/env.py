@@ -1,6 +1,7 @@
 """Any stack as a Gymnasium environment, for training."""
 from __future__ import annotations
 
+import gymnasium as gym
 import numpy as np
 
 from . import msgs
@@ -17,7 +18,7 @@ def _default_observe(obs) -> np.ndarray:
     return np.concatenate(parts).astype(np.float32) if parts else np.zeros(0, np.float32)
 
 
-class GymEnv:
+class GymEnv(gym.Env):
     """`reset()` / `step(action)` over an `App`.
 
     `action` becomes a `cmd/actuators` message unless `act` maps it to
@@ -28,7 +29,6 @@ class GymEnv:
     """
 
     def __init__(self, app, observe=None, act=None, reward=None, terminated=None, steps_per_action: int = 10, max_steps: int = 1000):
-        import gymnasium as gym
         from .control import Obs
         self.app = app
         app.realtime = False
@@ -49,18 +49,23 @@ class GymEnv:
         o = self.observe(Obs(app.bus))
         self.observation_space = gym.spaces.Box(-np.inf, np.inf, o.shape, np.float32)
 
-    def reset(self, seed=None, options=None):
+    def _observe(self):
+        obs = self._Obs(self.app.bus)
+        return obs, np.asarray(self.observe(obs), dtype=self.observation_space.dtype)
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
         self.app.reset()
         self._n = 0
-        return self.observe(self._Obs(self.app.bus)), {}
+        return self._observe()[1], {}
 
     def step(self, action):
         self.app.publish(self.act(action), source="env")
         for _ in range(self.steps_per_action):
             self.app.step()
         self._n += 1
-        obs = self._Obs(self.app.bus)
-        return self.observe(obs), float(self.reward(obs)), bool(self.terminated(obs)), self._n >= self.max_steps, {}
+        obs, o = self._observe()
+        return o, float(self.reward(obs)), bool(self.terminated(obs)), self._n >= self.max_steps, {}
 
     def close(self):
         self.app.close()

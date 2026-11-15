@@ -43,7 +43,7 @@ def test_registry_names_paths_and_errors():
     assert reg.build({"type": "roboforge.control.pid:PID", "kp": 2.0}).kp == 2.0
     obj = object()
     assert reg.build(obj) is obj and reg.build(None) is None
-    with pytest.raises(KeyError, match="unknown thing 'nope'"):
+    with pytest.raises(rf.ConfigError, match="unknown thing 'nope'"):
         reg.get("nope")
 
 

@@ -85,7 +85,7 @@ class Ros2Link(Link):
 
         self._types = dict(Clock=Clock, JointState=JointState, Odometry=Odometry, Imu=Imu, Image=Image, Twist=Twist,
                            PoseStamped=PoseStamped, Float64MultiArray=Float64MultiArray, TFMessage=TFMessage, TransformStamped=TransformStamped)
-        self.bus = app.bus
+        self.bus, self.app = app.bus, app
         if not rclpy.ok():
             # Leave Ctrl+C to the app: rclpy's own handler would tear the context down mid-step.
             from rclpy.signals import SignalHandlerOptions
@@ -204,21 +204,60 @@ class Ros2Link(Link):
 
     # --- ROS -> bus ----------------------------------------------------------
     def _in_cmd_vel(self, m):
+        if not self.finite([m.linear.x, m.linear.y, m.linear.z, m.angular.x, m.angular.y, m.angular.z]):
+            return self.reject(f"a {self.topics['cmd_vel']} message", "it contains nan or inf")
         self.bus.publish(msgs.CMD_VELOCITY, msgs.velocity_command((m.linear.x, m.linear.y, m.linear.z), (m.angular.x, m.angular.y, m.angular.z)), "ros2")
 
     def _in_joint_command(self, m):
-        self.bus.publish(msgs.CMD_JOINT, msgs.JointCommand(names=list(m.name), position=np.array(m.position, float),
-                                                           velocity=np.array(m.velocity, float), effort=np.array(m.effort, float)), "ros2")
+        topic = f"a {self.topics['joint_command']} message"
+        names, pos = list(m.name), np.array(m.position, float)
+        if not self.finite(pos, m.velocity, m.effort):
+            return self.reject(topic, "it contains nan or inf")
+        joints = list(getattr(self.app.physics, "joint_names", []) or [])
+        if joints:
+            if names:
+                # Addressed by name: any subset, in any order. The other joints keep their target.
+                if len(names) != len(pos):
+                    return self.reject(topic, f"it names {len(names)} joints but gives {len(pos)} positions")
+                unknown = [n for n in names if n not in joints]
+                if unknown:
+                    return self.reject(topic, f"unknown joint {', '.join(unknown)}; this robot has {', '.join(joints)}")
+                prev = self.bus.latest(msgs.CMD_JOINT)
+                state = self.bus.latest(msgs.JOINT_STATE)
+                full = (np.array(prev.position, float) if prev is not None and len(prev.position) == len(joints)
+                        else state.position.copy() if state is not None else np.zeros(len(joints)))
+                for n, p in zip(names, pos):
+                    full[joints.index(n)] = p
+                pos, names = full, joints
+            elif len(pos) != len(joints):
+                return self.reject(topic, f"it has {len(pos)} positions but this robot has {len(joints)} joints ({', '.join(joints)}); "
+                                          f"send all of them in that order, or fill in `name`")
+            else:
+                names = joints
+        self.bus.publish(msgs.CMD_JOINT, msgs.JointCommand(names=names, position=pos), "ros2")
 
     def _in_actuators(self, m):
-        self.bus.publish(msgs.CMD_ACTUATORS, msgs.ActuatorCommand(values=np.array(m.data, float)), "ros2")
+        topic = f"a {self.topics['actuators']} message"
+        values = np.array(m.data, float)
+        if not self.finite(values):
+            return self.reject(topic, "it contains nan or inf")
+        nu = len(getattr(self.app.physics, "actuator_names", values))
+        if len(values) != nu:
+            return self.reject(topic, f"it has {len(values)} values but this robot has {nu} actuators")
+        self.bus.publish(msgs.CMD_ACTUATORS, msgs.ActuatorCommand(values=values), "ros2")
 
     def _in_setpoint(self, m):
         from ..frames import yaw_of
         p, o = m.pose.position, m.pose.orientation
+        if not self.finite([p.x, p.y, p.z, o.w, o.x, o.y, o.z]):
+            return self.reject(f"a {self.topics['setpoint']} message", "it contains nan or inf")
+        if abs(o.w) + abs(o.x) + abs(o.y) + abs(o.z) < 1e-9:
+            o.w = 1.0           # an unset orientation means "no yaw preference"
         self.bus.publish(msgs.CMD_SETPOINT, msgs.Setpoint(position=np.array([p.x, p.y, p.z]), yaw=yaw_of([o.w, o.x, o.y, o.z])), "ros2")
 
     def _in_joint(self, m):
+        if not self.finite(m.position, m.velocity, m.effort):
+            return self.reject(f"a {self.topics['joint']} message", "it contains nan or inf")
         self.bus.publish(msgs.JOINT_STATE, msgs.JointState(names=list(m.name), position=np.array(m.position, float), velocity=np.array(m.velocity, float),
                                                            effort=np.array(m.effort, float), t=self._to_t(m.header.stamp)), "ros2")
 
@@ -227,11 +266,15 @@ class Ros2Link(Link):
         p, o, t = m.pose.pose.position, m.pose.pose.orientation, self._to_t(m.header.stamp)
         q = np.array([o.w, o.x, o.y, o.z])
         l, a = m.twist.twist.linear, m.twist.twist.angular
+        if not self.finite([p.x, p.y, p.z], q, [l.x, l.y, l.z, a.x, a.y, a.z]) or np.linalg.norm(q) < 1e-9:
+            return self.reject(f"a {self.topics['odom']} message", "it contains nan or inf, or an all-zero orientation")
         self.bus.publish(msgs.POSE, msgs.Pose(position=np.array([p.x, p.y, p.z]), orientation=q, t=t), "ros2")
         self.bus.publish(msgs.TWIST, msgs.Twist(linear=quat_to_mat(q) @ np.array([l.x, l.y, l.z]), angular=np.array([a.x, a.y, a.z]), t=t), "ros2")
 
     def _in_imu(self, m):
         a, g, o = m.linear_acceleration, m.angular_velocity, m.orientation
+        if not self.finite([a.x, a.y, a.z, g.x, g.y, g.z, o.w, o.x, o.y, o.z]):
+            return self.reject(f"a {self.topics['imu']} message", "it contains nan or inf")
         self.bus.publish(msgs.IMU, msgs.Imu(accel=np.array([a.x, a.y, a.z]), gyro=np.array([g.x, g.y, g.z]),
                                             orientation=np.array([o.w, o.x, o.y, o.z]), t=self._to_t(m.header.stamp)), "ros2")
 

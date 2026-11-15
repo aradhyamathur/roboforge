@@ -17,6 +17,8 @@ pymavlink connections.
 from __future__ import annotations
 
 import math
+import select
+import socket
 import threading
 import time
 
@@ -37,9 +39,14 @@ class MavlinkLink(Link):
     def __init__(self, mode: str = "vehicle", url: str = None, urls: list = None, system_id: int = 1, component_id: int = 1,
                  rate: float = 50.0, home=(47.397742, 8.545594, 488.0), takeoff_altitude: float = 2.5, land_speed: float = 0.7,
                  autopilot: str = "generic", motor_map: list = None, lockstep_timeout: float = 1.0, connect_timeout: float = 30.0,
-                 sensor_rate: float = 250.0, sensor_noise: float = 1.0):
+                 sensor_rate: float = 250.0, sensor_noise: float = 1.0, target_timeout: float = 1.0):
+        from ..errors import ConfigError, positive, suggest
         if mode not in ("vehicle", "client", "hil"):
-            raise ValueError("MavlinkLink mode must be 'vehicle', 'client' or 'hil'")
+            raise ConfigError(f"mavlink mode must be vehicle, client or hil, got {mode!r}.{suggest(mode, ('vehicle', 'client', 'hil'))}")
+        for what, v in (("rate", rate), ("sensor_rate", sensor_rate), ("lockstep_timeout", lockstep_timeout), ("connect_timeout", connect_timeout)):
+            positive(v, f"mavlink {what}")
+        if urls is not None and (isinstance(urls, str) or not all(isinstance(u, str) for u in urls)):
+            raise ConfigError(f"mavlink urls must be a list of strings, got {urls!r}. For one endpoint use `url:`.")
         self.mode = mode
         default = {"vehicle": ["udpout:127.0.0.1:14550", "udpout:127.0.0.1:14540"], "client": ["udpin:0.0.0.0:14540"], "hil": ["tcpin:0.0.0.0:4560"]}[mode]
         self.urls = list(urls) if urls else ([url] if url else default)
@@ -50,6 +57,7 @@ class MavlinkLink(Link):
         self.sensor_rate, self.late_answers, self._hil_connected = sensor_rate, 0, False
         self.sensor_noise, self._rng = sensor_noise, np.random.default_rng(0)
         self._late_in_a_row = 0
+        self.target_timeout, self._target_t, self._target_fresh = target_timeout, 0.0, False
         self._peer_px4, self._peer_mode, self._amsl, self._offboard_from = False, 0, None, None
         self.conns: list = []
         self._lock = threading.Lock()
@@ -86,8 +94,34 @@ class MavlinkLink(Link):
         self.bus, self.app = app.bus, app
         sysid = self.system_id if self.mode != "client" else 255
         comp = self.component_id if self.mode != "client" else self.mav.MAV_COMP_ID_MISSIONPLANNER
+        from ..errors import ConfigError
+        if self.mode in ("vehicle", "hil") and (app.robot is None or app.robot.profile != "multirotor"):
+            what = f"{app.robot.name} is {'an' if app.robot.profile[0] in 'aeiou' else 'a'} {app.robot.profile} robot" if app.robot else "this app has no robot"
+            raise ConfigError(f"mavlink {self.mode} mode flies a multirotor, and {what}. Use the quadrotor, give your model "
+                              f"`profile: multirotor`, or use `mode: client` to talk to an existing autopilot.")
         for url in self.urls:
-            self.conns.append(mavutil.mavlink_connection(url, source_system=sysid, source_component=comp))
+            kind, _, rest = str(url).partition(":")
+            host, _, port = rest.rpartition(":")
+            if kind not in ("udpin", "udpout", "udp", "udpbcast", "tcp", "tcpin") and not kind.startswith("/dev/"):
+                raise ConfigError(f"mavlink url {url!r} is not understood. Use udpout:host:port (send to), udpin:host:port (listen), "
+                                  f"tcp:host:port, tcpin:host:port, or a serial device such as /dev/ttyUSB0.")
+            if not kind.startswith("/dev/") and (not host or not port.isdigit() or not 0 < int(port) < 65536):
+                raise ConfigError(f"mavlink url {url!r} needs a host and a port from 1 to 65535, as in {kind}:127.0.0.1:14540")
+            try:
+                if kind in ("udpin", "tcpin"):
+                    # pymavlink binds with SO_REUSEADDR, so a second listener on the port would
+                    # start without complaint and then steal or lose packets. Check first.
+                    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if kind == "udpin" else socket.SOCK_STREAM)
+                    try:
+                        probe.bind((host, int(port)))
+                    finally:
+                        probe.close()
+                conn = mavutil.mavlink_connection(url, source_system=sysid, source_component=comp)
+                conn.robust_parsing = True      # resynchronise after bad bytes instead of raising
+                self.conns.append(conn)
+            except OSError as e:
+                why = "another program (or another copy of this app) is already using that port" if e.errno == 98 else str(e)
+                raise ConnectionError(f"mavlink could not open {url}: {why}") from None
         if self.mode == "vehicle":
             pose = self.bus.latest(msgs.POSE)
             self._ground = float(pose.position[2]) if pose is not None else 0.0
@@ -117,20 +151,48 @@ class MavlinkLink(Link):
                     pass
 
     def _receive(self, conn):
+        udp = isinstance(conn, self._mu.mavudp)
         while not self._stop:
             try:
-                m = conn.recv_match(blocking=True, timeout=0.2)
-            except Exception:
+                if udp:
+                    # Over UDP every datagram carries whole messages. pymavlink parses a byte
+                    # stream, so after junk it can sit waiting for the rest of a frame that never
+                    # existed and swallow the real packets that follow. Parse per datagram
+                    # instead: drop a half-read frame left over from the previous datagram, read
+                    # one datagram, then empty the parser.
+                    if not select.select([conn.port], [], [], 0.2)[0]:
+                        continue
+                    p = conn.mav
+                    if len(p.buf) > p.buf_index:
+                        p.buf, p.buf_index, p.expected_length = bytearray(), 0, 8
+                        self.dropped += 1
+                    self._handle(conn, conn.recv_msg())
+                    while not self._stop:
+                        more = conn.mav.parse_char(b"")
+                        if more is None:
+                            break
+                        conn.post_message(more)
+                        self._handle(conn, more)
+                else:
+                    self._handle(conn, conn.recv_match(blocking=True, timeout=0.2))
+            except OSError:                 # the socket is not usable right now (peer gone, not yet connected)
                 if self._stop:
                     break
                 time.sleep(0.05)
-                continue
-            if m is None or m.get_type() == "BAD_DATA":
-                continue
-            try:
-                getattr(self, f"_rx_{self.mode}")(conn, m)
-            except Exception as e:
-                print(f"roboforge: mavlink {self.mode} could not handle {m.get_type()}: {type(e).__name__}: {e}")
+            except Exception:               # bytes that are not MAVLink
+                self.dropped += 1
+
+    def _handle(self, conn, m):
+        if m is None:
+            return
+        kind = m.get_type()
+        if kind == "BAD_DATA" or kind.startswith("UNKNOWN_"):
+            self.dropped += 1
+            return
+        try:
+            getattr(self, f"_rx_{self.mode}")(conn, m)
+        except Exception as e:
+            print(f"roboforge: mavlink {self.mode} could not handle {kind}: {type(e).__name__}: {e}", flush=True)
 
     # =====================================================================
     # vehicle
@@ -173,6 +235,8 @@ class MavlinkLink(Link):
             if not self.armed or pose is None:
                 return False
             alt = float(params.get("altitude") or self.takeoff_altitude)
+            if not math.isfinite(alt) or alt <= 0:
+                return False            # a takeoff goes up
             self.flight_mode, self.landed = "TAKEOFF", False
             self._target = msgs.Setpoint(position=np.array([pose.position[0], pose.position[1], self._ground + alt]), yaw=yaw_of(pose.orientation))
             self.bus.publish(msgs.CMD_SETPOINT, self._target, "mavlink")
@@ -214,10 +278,16 @@ class MavlinkLink(Link):
             ignore_pos = (m.type_mask & 0b111) == 0b111
             ignore_vel = (m.type_mask & 0b111000) == 0b111000
             yaw = 0.0 if (m.type_mask & 0x400) else math.pi / 2 - m.yaw
+            used = ([] if ignore_pos else [m.x, m.y, m.z]) + ([] if ignore_vel else [m.vx, m.vy, m.vz]) + ([] if m.type_mask & 0x400 else [m.yaw])
+            if not self.finite(used):
+                return self.reject("a position target", "it contains nan or inf")
+            if ignore_pos and ignore_vel:
+                return self.reject("a position target", "its type_mask ignores both position and velocity (acceleration targets are not supported)")
             pos = None if ignore_pos else ned_to_enu([m.x, m.y, m.z]) + np.array([0.0, 0.0, self._ground])
             vel = None if ignore_vel else ned_to_enu([m.vx, m.vy, m.vz])
             self.flight_mode, self.landed = "OFFBOARD", False
             self._target = msgs.Setpoint(position=pos, velocity=vel, yaw=yaw)
+            self._target_fresh = True
             self.bus.publish(msgs.CMD_SETPOINT, self._target, "mavlink")
             self._publish_status()
 
@@ -227,6 +297,15 @@ class MavlinkLink(Link):
             return
         height = float(pose.position[2]) - self._ground
         # --- mode logic ---
+        if self._target_fresh:
+            self._target_t, self._target_fresh = t, False
+        if (self.flight_mode == "OFFBOARD" and self._target is not None and self._target.position is None
+                and t - self._target_t > self.target_timeout):
+            # A velocity target that is no longer being refreshed: the sender has gone. Stop and hold here.
+            self.flight_mode = "HOLD"
+            self._target = msgs.Setpoint(position=pose.position.copy(), yaw=yaw_of(pose.orientation))
+            self.bus.publish(msgs.CMD_SETPOINT, self._target, "mavlink")
+            self._publish_status()
         if self.flight_mode == "TAKEOFF" and self._target is not None and abs(pose.position[2] - self._target.position[2]) < 0.2:
             self.flight_mode = "HOLD"
             self._publish_status()
@@ -286,8 +365,12 @@ class MavlinkLink(Link):
         elif t == "GLOBAL_POSITION_INT":
             self._amsl = m.alt / 1000.0
         elif t == "ATTITUDE":
+            if not self.finite([m.roll, m.pitch, m.yaw, m.rollspeed, m.pitchspeed, m.yawspeed]):
+                return self.reject("an ATTITUDE message", "it contains nan or inf")
             self._att = (attitude_ned_to_enu(euler_to_mat(m.roll, m.pitch, m.yaw)), frd_to_flu([m.rollspeed, m.pitchspeed, m.yawspeed]))
         elif t == "LOCAL_POSITION_NED":
+            if not self.finite([m.x, m.y, m.z, m.vx, m.vy, m.vz]):
+                return self.reject("a LOCAL_POSITION_NED message", "it contains nan or inf")
             q, rates = self._att if self._att is not None else (np.array([1.0, 0, 0, 0]), np.zeros(3))
             stamp = m.time_boot_ms / 1000.0
             self.bus.publish(msgs.POSE, msgs.Pose(position=ned_to_enu([m.x, m.y, m.z]), orientation=q, t=stamp), "mavlink")
@@ -322,11 +405,16 @@ class MavlinkLink(Link):
             self._stream_from = self.bus.count(msgs.CMD_SETPOINT) + 1
         self._acks.pop(cmd, None)
         self._ack_event.clear()
-        self._send(lambda c: c.mav.command_long_send(c.target_system or 1, c.target_component or 1, cmd, 0, *p))
-        end = time.monotonic() + timeout
+        end, tries = time.monotonic() + timeout, 0
         while cmd not in self._acks and time.monotonic() < end:
-            self._ack_event.wait(0.05)
-            self._ack_event.clear()
+            # UDP loses packets: resend (with the MAVLink confirmation counter) until acknowledged.
+            n = tries
+            self._send(lambda c: c.mav.command_long_send(c.target_system or 1, c.target_component or 1, cmd, min(n, 255), *p))
+            tries += 1
+            resend = min(time.monotonic() + 1.0, end)
+            while cmd not in self._acks and time.monotonic() < resend:
+                self._ack_event.wait(0.05)
+                self._ack_event.clear()
         return self._acks.get(cmd) == mav.MAV_RESULT_ACCEPTED
 
     def _client_step(self, t: float):
@@ -396,7 +484,7 @@ class MavlinkLink(Link):
             end = time.monotonic() + self.connect_timeout
             while not any(getattr(c, "port", None) is not None for c in self.conns):
                 if time.monotonic() > end:
-                    raise TimeoutError(f"no autopilot connected on {self.urls[0]} within {self.connect_timeout:.0f}s. Start PX4 SITL so it connects to this simulator.")
+                    raise TimeoutError(f"no autopilot connected on {self.urls[0]} within {self.connect_timeout:g}s. Start PX4 SITL so it connects to this simulator.")
                 time.sleep(0.02)
             self._hil_connected = True
         if not self._due("sensor", t, self.sensor_rate):

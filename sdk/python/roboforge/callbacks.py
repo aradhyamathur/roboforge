@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import time
 from pathlib import Path
 
@@ -27,7 +28,17 @@ class Recorder(Callback):
         self.inputs = list(self.signals) + ["sensor/camera/*"]
 
     def on_start(self, app):
-        self.dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            # A folder holds one run: frames left by an earlier recording would be mixed into this one.
+            for old in ("images", "signals.npz", "dataset.yaml"):
+                p = self.dir / old
+                if p.is_dir():
+                    shutil.rmtree(p)
+                elif p.exists():
+                    p.unlink()
+        except OSError as e:
+            raise OSError(f"the recorder cannot write to {self.dir}: {e.strerror or e}") from None
         self._rows = {s: [] for s in self.signals}
         self._times = {s: [] for s in self.signals}
         self._frames, self._intr = {}, {}
@@ -84,6 +95,7 @@ class Recorder(Callback):
             (self.dir / "images" / cam / "frames.json").write_text(json.dumps(frames))
         meta = {"roboforge": 1, "robot": self._robot, "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "duration": float(app.physics.time), "signals": sorted(k for k in arrays if not k.endswith("_t")),
+                "signal_names": {s.replace("/", "_"): s for s in self._rows if s.replace("/", "_") in arrays},
                 "cameras": {c: {**self._intr[c], "frames": len(f)} for c, f in self._frames.items()}}
         (self.dir / "dataset.yaml").write_text(yaml.safe_dump(meta, sort_keys=False))
 

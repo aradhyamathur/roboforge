@@ -13,6 +13,7 @@ import numpy as np  # noqa: E402
 
 from .. import msgs  # noqa: E402
 from ..component import Physics  # noqa: E402
+from ..errors import ConfigError, SimulationError, positive  # noqa: E402
 
 
 class MujocoPhysics(Physics):
@@ -29,6 +30,8 @@ class MujocoPhysics(Physics):
     inputs = [msgs.CMD_ACTUATORS]
 
     def __init__(self, timestep: float = None, substeps: int = 1, keyframe: int = 0, gravity=None):
+        positive(timestep, "physics timestep", allow_none=True)
+        positive(substeps, "physics substeps", integer=True)
         self._timestep, self.substeps, self.keyframe, self._gravity = timestep, int(substeps), keyframe, gravity
         self.model = self.data = None
         self.time = 0.0
@@ -36,9 +39,12 @@ class MujocoPhysics(Physics):
     # --- setup -------------------------------------------------------------
     def setup(self, app):
         if app.robot is None:
-            raise ValueError("MujocoPhysics needs a robot (a model to load).")
+            raise ConfigError("the mujoco physics backend needs a robot (a model to load). Set `robot:`, or use `physics: none`.")
         self.bus, self.robot = app.bus, app.robot
-        self.model = mujoco.MjModel.from_xml_path(self.robot.model)
+        try:
+            self.model = mujoco.MjModel.from_xml_path(self.robot.model)
+        except Exception as e:
+            raise ConfigError(f"MuJoCo could not load {self.robot.model}: {' '.join(str(e).split())}") from None
         if self._timestep:
             self.model.opt.timestep = self._timestep
         if self._gravity is not None:
@@ -48,7 +54,8 @@ class MujocoPhysics(Physics):
         m = self.model
         self.base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, self.robot.base) if self.robot.base else (1 if m.nbody > 1 else 0)
         if self.base < 0:
-            raise ValueError(f"the model has no body named {self.robot.base!r}")
+            bodies = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, i) for i in range(1, m.nbody)]
+            raise ConfigError(f"the model has no body named {self.robot.base!r}. Its bodies: {', '.join(b for b in bodies if b)}")
         # int() on both sides: MuJoCo's enum values do not compare reliably with numpy integers.
         kinds = {int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)}
         self._joints = [j for j in range(m.njnt) if int(m.jnt_type[j]) in kinds]
@@ -75,7 +82,18 @@ class MujocoPhysics(Physics):
         return None
 
     def _on_cmd(self, _name, msg):
-        self._cmd = np.asarray(msg.values, float)
+        try:
+            cmd = np.asarray(msg.values, float).reshape(-1)
+        except (TypeError, ValueError):
+            raise ValueError(f"cmd/actuators needs a list of numbers, got {msg.values!r:.80}") from None
+        nu = self.model.nu
+        if len(cmd) != nu:
+            raise ValueError(f"cmd/actuators has {len(cmd)} values but {self.robot.name} has {nu} actuators"
+                             + (f" ({', '.join(self.actuator_names)})" if nu else "; the model defines none"))
+        if not np.all(np.isfinite(cmd)):
+            raise ValueError(f"cmd/actuators contains nan or inf: {cmd}. A controller upstream produced it; "
+                             f"check its inputs and gains.")
+        self._cmd = cmd
 
     @property
     def raw(self):
@@ -119,8 +137,7 @@ class MujocoPhysics(Physics):
 
     def step(self):
         if self._cmd is not None:
-            n = min(len(self._cmd), self.model.nu)
-            self.data.ctrl[:n] = np.clip(self._cmd[:n], self.ctrl_range[:n, 0], self.ctrl_range[:n, 1])
+            self.data.ctrl[:] = np.clip(self._cmd, self.ctrl_range[:, 0], self.ctrl_range[:, 1])
         for _ in range(self.substeps):
             mujoco.mj_step(self.model, self.data)
         # MuJoCo resets the state when the simulation blows up, which would make
@@ -128,8 +145,9 @@ class MujocoPhysics(Physics):
         bad = int(self.data.warning[int(mujoco.mjtWarning.mjWARN_BADQACC)].number)
         if bad > self._bad:
             self._bad = bad
-            raise RuntimeError(f"the simulation became unstable near t={self.time:.3f}s. "
-                               f"Reduce the timestep or the controller/actuator gains, or use an implicit integrator.")
+            raise SimulationError(f"the simulation became unstable near t={self.time:.3f}s (MuJoCo reported a nan or huge acceleration). "
+                                  f"Reduce the timestep or the controller/actuator gains, or use an implicit integrator "
+                                  f"(<option integrator=\"implicitfast\"/> in the model).")
         self.time = float(self.data.time)
         self._publish()
 

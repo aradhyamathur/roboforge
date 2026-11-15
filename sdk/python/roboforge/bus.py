@@ -35,8 +35,16 @@ class Bus:
                 self._source[name].add(source)
             handlers = list(self._subs.get(name, ()))
             handlers += [h for p, h in self._patterns if fnmatch.fnmatchcase(name, p)]
+        failed = None
         for h in handlers:
-            h(name, msg)
+            try:
+                h(name, msg)
+            except Exception as e:      # one failing subscriber must not starve the others
+                if failed is None:
+                    failed = e
+        if failed is not None:
+            failed.add_note(f"(raised by a subscriber of {name!r})")
+            raise failed
 
     def subscribe(self, name: str, handler: Handler) -> Callable[[], None]:
         """Call `handler(name, msg)` on every publish. `name` may contain `*`.
@@ -50,6 +58,12 @@ class Bus:
                 return lambda: self._patterns.remove(entry) if entry in self._patterns else None
             self._subs[name].append(handler)
             return lambda: self._subs[name].remove(handler) if handler in self._subs[name] else None
+
+    def unsubscribe_all(self) -> None:
+        """Drop every subscription (the latest values stay readable). An app does this when it closes."""
+        with self._lock:
+            self._subs.clear()
+            self._patterns.clear()
 
     def latest(self, name: str, default: Any = None) -> Any:
         with self._lock:

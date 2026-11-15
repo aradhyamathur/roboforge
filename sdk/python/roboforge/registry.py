@@ -8,7 +8,10 @@ when that component is actually used. Third-party packages add entries with
 from __future__ import annotations
 
 import importlib
+import inspect
 from typing import Any
+
+from .errors import ConfigError, suggest
 
 
 class Registry:
@@ -34,17 +37,31 @@ class Registry:
         """Resolve a registered name, or an explicit `package.module:Class` path."""
         target = self._items.get(name)
         if target is None:
+            if not isinstance(name, str):
+                raise ConfigError(f"a {self.kind} is named by a string, got {name!r}")
             if ":" not in name:
-                raise KeyError(f"unknown {self.kind} {name!r}. Known: {', '.join(self.names()) or 'none'}. "
-                               f"Use 'package.module:Class' for your own.")
+                raise ConfigError(f"unknown {self.kind} {name!r}.{suggest(name, self.names())} Known: {', '.join(self.names()) or 'none'}. "
+                                  f"Use 'module:Class' for your own.")
             target = name
         if isinstance(target, str):
             module, _, attr = target.partition(":")
             try:
-                target = getattr(importlib.import_module(module), attr)
+                mod = importlib.import_module(module)
+            except ModuleNotFoundError as e:
+                if name not in self._items and e.name == module.split(".")[0]:
+                    # The user's own module, not a missing dependency of ours.
+                    raise ConfigError(f"{self.kind} {name!r}: there is no module {module!r}. "
+                                      f"Put {module.replace('.', '/')}.py next to the config file, or check the spelling.") from None
+                raise ImportError(f"{self.kind} {name!r} needs a package that is not installed: {e}. "
+                                  f"Run `python -m roboforge doctor` to see what each component needs.") from e
             except ImportError as e:
                 raise ImportError(f"{self.kind} {name!r} needs a package that is not installed: {e}. "
                                   f"Run `python -m roboforge doctor` to see what each component needs.") from e
+            if not hasattr(mod, attr):
+                have = sorted(k for k, v in vars(mod).items() if inspect.isclass(v) and v.__module__ == mod.__name__)
+                raise ConfigError(f"{self.kind} {name!r}: {module} has no class {attr!r}.{suggest(attr, have)} "
+                                  f"It defines: {', '.join(have) or 'no classes'}.")
+            target = getattr(mod, attr)
             if name in self._items:
                 self._items[name] = target
         return target
@@ -55,9 +72,23 @@ class Registry:
             return spec
         if isinstance(spec, str):
             spec = {"type": spec}
+        if "type" not in spec:
+            raise ConfigError(f"a {self.kind} needs a `type`, got {spec!r}. Known: {', '.join(self.names())}.")
         kwargs = {k: v for k, v in spec.items() if k != "type"}
         kwargs.update(extra)
-        return self.get(spec["type"])(**kwargs)
+        cls = self.get(spec["type"])
+        # A misspelt argument should read as a config mistake, not as a Python TypeError.
+        try:
+            params = inspect.signature(cls).parameters
+        except (TypeError, ValueError):
+            params = None
+        if params is not None and not any(p.kind is p.VAR_KEYWORD for p in params.values()):
+            allowed = [n for n, p in params.items() if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)]
+            for k in kwargs:
+                if k not in allowed:
+                    raise ConfigError(f"{self.kind} {spec['type']!r} has no argument {k!r}.{suggest(k, allowed)} "
+                                      f"Its arguments: {', '.join(allowed) or 'none'}.")
+        return cls(**kwargs)
 
 
 PHYSICS = Registry("physics backend")

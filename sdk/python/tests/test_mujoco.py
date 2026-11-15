@@ -185,7 +185,8 @@ def test_renderer_passes_and_recorder_exports(tmp_path):
     frames = ds.frames()
     assert ds.cameras == ["front"] and len(frames) == 11 and ds.meta["cameras"]["front"]["w"] == 160
     sig = ds.signals()
-    assert sig["state_pose"].shape == (101, 7) and sig["state_pose"][-1, 2] > 0.5
+    assert sig["state/pose"].shape == (101, 7) and sig["state/pose"][-1, 2] > 0.5
+    assert len(ds.times("state/pose")) == 101
 
     ns = ds.export_nerfstudio(tmp_path / "ns")
     tr = json.loads((ns / "transforms.json").read_text())

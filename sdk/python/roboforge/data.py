@@ -53,9 +53,25 @@ class Dataset:
         return list(self.meta.get("cameras", {}))
 
     def signals(self) -> dict:
-        """The recorded time series as `{name: array}`."""
+        """The recorded time series as `{signal name: array}`, one row per sample
+        (`state/pose`: position then quaternion; `state/twist`: linear then angular;
+        `state/joint`: positions then velocities; `sensor/imu`: accel then gyro)."""
+        return {name: data for name, (_, data) in self._series().items()}
+
+    def times(self, name: str) -> np.ndarray:
+        """Timestamps (app time, seconds) of the samples of one signal."""
+        series = self._series()
+        if name not in series:
+            raise ValueError(f"no signal {name!r} in this dataset. Recorded: {', '.join(series) or 'none'}")
+        return series[name][0]
+
+    def _series(self) -> dict:
         f = self.path / "signals.npz"
-        return dict(np.load(f)) if f.is_file() else {}
+        if not f.is_file():
+            return {}
+        raw = dict(np.load(f))
+        names = self.meta.get("signal_names") or {k: k.replace("_", "/", 1) for k in raw if not k.endswith("_t")}
+        return {names[k]: (raw.get(k + "_t"), raw[k]) for k in names if k in raw}
 
     def frames(self, camera: str = None) -> list:
         camera = self._camera(camera)
@@ -64,10 +80,11 @@ class Dataset:
     def _camera(self, camera):
         if camera is None:
             if not self.cameras:
-                raise ValueError("this dataset has no camera frames")
+                raise ValueError(f"{self.path} has no camera frames: it was recorded without a renderer. "
+                                 f"Add `renderer: {{type: mujoco}}` to the app and record again.")
             camera = self.cameras[0]
         if camera not in self.cameras:
-            raise KeyError(f"no camera {camera!r} in this dataset. Recorded: {', '.join(self.cameras)}")
+            raise ValueError(f"no camera {camera!r} in this dataset. Recorded: {', '.join(self.cameras)}")
         return camera
 
     def export_nerfstudio(self, out, camera: str = None) -> Path:

@@ -10,13 +10,40 @@ it is given a bus.
 """
 from __future__ import annotations
 
+import atexit
+import threading
 import time
+import weakref
 from typing import Any, Callable, Optional
 
 from . import registry as reg
 from .bus import Bus
 from .control import Controller, Obs, _Function
+from .errors import ConfigError, positive
 from .robot import Robot
+
+
+_LIVE: "weakref.WeakSet[App]" = weakref.WeakSet()
+
+
+def _stop_all_at_exit():
+    """A loop still stepping native code in a background thread while the interpreter
+    shuts down crashes the process. Stop every loop and let it finish its step first."""
+    apps = [a for a in list(_LIVE) if a._looping.is_set()]
+    for a in apps:
+        a._stop = True
+    for a in apps:
+        if a._loop_thread is not threading.current_thread():
+            a._idle.wait(timeout=3.0)
+    for a in list(_LIVE):
+        if a._ready and a.renderer is not None:
+            try:
+                a.renderer.close()
+            except Exception:
+                pass
+
+
+atexit.register(_stop_all_at_exit)
 
 
 class App:
@@ -33,9 +60,16 @@ class App:
         ctrls = list(controllers) + ([controller] if controller is not None else [])
         self.controllers: list[Controller] = [self._controller(c) for c in ctrls]
         self.callbacks = [reg.CALLBACKS.build(c) for c in callbacks]
-        self.realtime, self.speed = realtime, speed
+        for c in self.controllers:
+            if not callable(getattr(c, "step", None)):
+                raise ConfigError(f"a controller needs a step(obs, t) method; {c!r} has none")
+            positive(getattr(c, "rate", None), f"the rate of controller {getattr(c, 'name', '') or type(c).__name__}", allow_none=True)
+        self.realtime, self.speed = bool(realtime), positive(speed, "speed")
         self.steps = 0
-        self._ready = False
+        self._ready = self._closed = False
+        self._looping, self._idle, self._loop_thread = threading.Event(), threading.Event(), None
+        self._idle.set()
+        _LIVE.add(self)
         self._stop = False
         self._next: dict[int, float] = {}
         self._runs: dict[int, int] = {}
@@ -60,6 +94,8 @@ class App:
     def setup(self) -> "App":
         if self._ready:
             return self
+        if self._closed:
+            raise RuntimeError("this app was closed; build a new App to run again (use reset() to start over without closing)")
         self.physics.setup(self)
         if self.renderer is not None:
             self.renderer.setup(self)
@@ -89,7 +125,7 @@ class App:
     def close(self) -> None:
         if not self._ready:
             return
-        self._ready = False
+        self._ready, self._closed = False, True
         for cb in self.callbacks:
             cb.on_stop(self)
             cb.close()
@@ -100,6 +136,8 @@ class App:
         if self.renderer is not None:
             self.renderer.close()
         self.physics.close()
+        # Nothing should run on a closed app, and dropping the handlers lets its parts be freed at once.
+        self.bus.unsubscribe_all()
 
     def __enter__(self):
         return self.setup()
@@ -122,8 +160,12 @@ class App:
         elif isinstance(action, (list, tuple)):
             for a in action:
                 self.publish(a, source)
-        else:
+        elif isinstance(getattr(type(action), "signal", None), str):
             self.bus.publish(type(action).signal, action, source)
+        else:
+            raise ValueError(f"{source or 'a controller'} returned a {type(action).__name__} ({action!r:.60}). Return a message "
+                             f"(rf.JointCommand, rf.Setpoint, rf.ActuatorCommand, rf.velocity_command(...)), a list of messages, "
+                             f"a dict of {{signal: message}}, or None.")
 
     def step(self) -> None:
         """One physics step: links in, controllers that are due, physics, renderer, links out, callbacks."""
@@ -141,7 +183,12 @@ class App:
                 period = 1.0 / c.rate
                 self._next[key] = due + period if due + period > t else t + period
             self._runs[key] = self._runs.get(key, 0) + 1
-            self.publish(c.step(obs, t), source=c.name or type(c).__name__)
+            who = c.name or type(c).__name__
+            try:
+                self.publish(c.step(obs, t), source=who)
+            except Exception as e:
+                e.add_note(f"(in controller {who} at t={t:.3f}s)")
+                raise
         self.physics.step()
         t = self.physics.time
         if self.renderer is not None:
@@ -164,6 +211,9 @@ class App:
         self._stop = False
         t_end = None if duration is None else self.physics.time + duration
         n = 0
+        self._loop_thread = threading.current_thread()
+        self._idle.clear()
+        self._looping.set()
         try:
             while not self._stop:
                 if t_end is not None and self.physics.time >= t_end - 1e-9:
@@ -176,6 +226,9 @@ class App:
                 n += 1
         except KeyboardInterrupt:
             pass
+        finally:
+            self._looping.clear()
+            self._idle.set()
         return self
 
     def as_env(self, **kw):

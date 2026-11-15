@@ -26,6 +26,8 @@ from pathlib import Path
 
 import yaml
 
+from .errors import ConfigError, suggest
+
 TOP_LEVEL = {"roboforge", "name", "robot", "physics", "renderer", "links", "controllers", "callbacks", "realtime", "speed", "run"}
 
 
@@ -34,36 +36,48 @@ def load(config) -> tuple[dict, Path]:
     if isinstance(config, dict):
         return copy.deepcopy(config), Path.cwd()
     path = Path(config)
-    cfg = yaml.safe_load(path.read_text()) or {}
+    try:
+        cfg = yaml.safe_load(path.read_text()) or {}
+    except yaml.YAMLError as e:
+        raise ConfigError(f"{path} is not valid YAML: {' '.join(str(e).split())}") from None
     if not isinstance(cfg, dict):
-        raise ValueError(f"{path}: expected a mapping at the top level")
+        raise ConfigError(f"{path}: expected `key: value` settings at the top level, found a {type(cfg).__name__}")
     return cfg, path.resolve().parent
 
 
 def apply_overrides(cfg: dict, overrides) -> dict:
     for item in overrides:
         if "=" not in item:
-            raise ValueError(f"override {item!r} is not of the form path=value")
+            raise ConfigError(f"override {item!r} is not of the form path=value (for example physics.substeps=2)")
         path, _, raw = item.partition("=")
         value = yaml.safe_load(raw)
         node = cfg
         keys = path.split(".")
         for i, k in enumerate(keys[:-1]):
-            k = int(k) if isinstance(node, list) else k
+            if isinstance(node, list):
+                where = ".".join(keys[:i])
+                if not k.lstrip("-").isdigit() or not -len(node) <= int(k) < len(node):
+                    raise ConfigError(f"override {item!r}: {where} is a list of {len(node)}, so the next part must be an index "
+                                      f"from 0 to {len(node) - 1}, got {k!r}" if node else f"override {item!r}: {where} is empty, there is nothing to override")
+                k = int(k)
+            elif not isinstance(node, dict):
+                raise ConfigError(f"override {item!r}: {'.'.join(keys[:i])} is a plain value, it has no {k!r}")
             try:
                 nxt = node[k]
-            except (KeyError, IndexError):
-                if isinstance(node, list):
-                    raise KeyError(f"override {item!r}: no index {k} in {'.'.join(keys[:i])}") from None
+            except KeyError:
                 nxt = node[k] = {}
             if isinstance(nxt, str):      # "mujoco" -> {type: mujoco} so it can take arguments
                 nxt = node[k] = {"type": nxt}
             node = nxt
         last = keys[-1]
         if isinstance(node, list):
+            if not last.lstrip("-").isdigit() or not -len(node) <= int(last) < len(node):
+                raise ConfigError(f"override {item!r}: {'.'.join(keys[:-1])} is a list of {len(node)}; {last!r} is not an index into it")
             node[int(last)] = value
-        else:
+        elif isinstance(node, dict):
             node[last] = value
+        else:
+            raise ConfigError(f"override {item!r}: {'.'.join(keys[:-1])} is a plain value, it has no {last!r}")
     return cfg
 
 
@@ -72,7 +86,11 @@ def resolve(config, overrides=()) -> tuple[dict, Path]:
     apply_overrides(cfg, overrides)
     unknown = set(cfg) - TOP_LEVEL
     if unknown:
-        raise ValueError(f"unknown config keys: {', '.join(sorted(unknown))}. Allowed: {', '.join(sorted(TOP_LEVEL))}")
+        hints = "".join(suggest(k, TOP_LEVEL) for k in sorted(unknown))
+        raise ConfigError(f"unknown config keys: {', '.join(sorted(unknown))}.{hints} Allowed: {', '.join(sorted(TOP_LEVEL))}")
+    for k in ("links", "controllers", "callbacks"):
+        if cfg.get(k) is not None and not isinstance(cfg[k], list):
+            raise ConfigError(f"`{k}` must be a list (lines starting with `- `), got a {type(cfg[k]).__name__}")
     robot = cfg.get("robot")
     if isinstance(robot, dict):
         for k in ("mjcf", "urdf"):

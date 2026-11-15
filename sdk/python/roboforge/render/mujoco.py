@@ -1,12 +1,14 @@
 """MuJoCo's own renderer as a camera source."""
 from __future__ import annotations
 
+import queue
 import threading
 
 import numpy as np
 
 from .. import msgs
 from ..component import Renderer
+from ..errors import ConfigError, positive
 
 
 class MujocoRenderer(Renderer):
@@ -20,62 +22,124 @@ class MujocoRenderer(Renderer):
 
     def __init__(self, cameras=None, width: int = 320, height: int = 240, fps: float = 10.0, depth: bool = False):
         super().__init__()
-        self.cameras, self.width, self.height, self.fps, self.depth = cameras, width, height, fps, depth
-        self._r = None
-        self._thread = None
+        positive(width, "renderer width", integer=True)
+        positive(height, "renderer height", integer=True)
+        positive(fps, "renderer fps")
+        if isinstance(cameras, str):
+            cameras = [cameras]
+        self.cameras, self.width, self.height, self.fps, self.depth = cameras, int(width), int(height), fps, depth
+        self._mj = None
+        self._thread, self._jobs, self._start = None, None, threading.Lock()
         self._next = 0.0
 
     def setup(self, app):
         import mujoco
         physics = app.physics
         if getattr(physics, "model", None) is None:
-            raise ValueError("MujocoRenderer needs MujocoPhysics (it renders that model). "
-                             "Use another renderer with other physics backends.")
+            raise ConfigError("the mujoco renderer needs the mujoco physics backend and a robot (it renders that model). "
+                              "Use another renderer with other physics backends.")
         self.bus, self.model, self.data = app.bus, physics.model, physics.data
         if self.cameras is None:
             self.cameras = list(app.robot.cameras) if app.robot else []
-        for c in self.cameras:
-            if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, c) < 0:
-                raise ValueError(f"the model has no camera named {c!r}")
         self._mj = mujoco
+        for c in self.cameras:
+            self._camera_id(c)
+        # MuJoCo renders into an off-screen buffer whose size the model fixes.
+        vis = self.model.vis.global_
+        if self.width > vis.offwidth or self.height > vis.offheight:
+            vis.offwidth, vis.offheight = max(vis.offwidth, self.width), max(vis.offheight, self.height)
         self.outputs = [msgs.CAMERA.format(name=c) for c in self.cameras] + ([msgs.DEPTH.format(name=c) for c in self.cameras] if self.depth else [])
         self._next = 0.0
 
-    def _context(self):
-        """The MuJoCo renderer, created in the thread that renders: an OpenGL
-        context belongs to one thread, and the app may be run from any."""
-        me = threading.get_ident()
-        if self._r is None or self._thread != me:
-            if self._r is not None:
-                try:
-                    self._r.close()
-                except Exception:
-                    pass
-            self._r = self._mj.Renderer(self.model, self.height, self.width)
-            self._thread = me
-        return self._r
+    # An OpenGL context belongs to the thread that created it, and some backends crash
+    # if it is used or destroyed from another. So one worker thread per renderer creates
+    # the context, renders every frame and closes it; `render()` may be called from anywhere.
+    def _worker(self, jobs):
+        r = None
+        while True:
+            job = jobs.get()
+            if job is None:
+                break
+            fn, box, done = job
+            try:
+                if r is None:
+                    r = self._mj.Renderer(self.model, self.height, self.width)
+                box["out"] = fn(r)
+            except BaseException as e:
+                box["err"] = e
+            done.set()
+        if r is not None:
+            try:
+                r.close()
+            except Exception:
+                pass
+
+    def _on_render_thread(self, fn):
+        with self._start:
+            if self._thread is None or not self._thread.is_alive():
+                self._jobs = queue.SimpleQueue()
+                self._thread = threading.Thread(target=self._worker, args=(self._jobs,), name="roboforge-render", daemon=True)
+                self._thread.start()
+            jobs = self._jobs
+        box, done = {}, threading.Event()
+        jobs.put((fn, box, done))
+        done.wait()
+        if "err" in box:
+            e = box["err"]
+            if "context" in str(e).lower() or "egl" in str(e).lower() or "glfw" in str(e).lower():
+                raise RuntimeError(f"could not create an OpenGL context for off-screen rendering ({type(e).__name__}: {e}). "
+                                   f"On a machine without a display set MUJOCO_GL=egl (GPU) or MUJOCO_GL=osmesa (software) "
+                                   f"before starting; `python -m roboforge doctor` shows what is in use.") from e
+            raise e
+        return box["out"]
 
     def _pose(self, camera: str) -> np.ndarray:
-        cid = self._mj.mj_name2id(self.model, self._mj.mjtObj.mjOBJ_CAMERA, camera)
+        cid = self._camera_id(camera)
         T = np.eye(4)
         T[:3, :3] = self.data.cam_xmat[cid].reshape(3, 3)     # columns: camera x, y, z axes in the world; looks along -z
         T[:3, 3] = self.data.cam_xpos[cid]
         return T
 
+    def _camera_id(self, camera: str) -> int:
+        cid = self._mj.mj_name2id(self.model, self._mj.mjtObj.mjOBJ_CAMERA, camera) if isinstance(camera, str) else -1
+        if cid < 0:
+            have = [self._mj.mj_id2name(self.model, self._mj.mjtObj.mjOBJ_CAMERA, i) for i in range(self.model.ncam)]
+            raise ConfigError(f"the model has no camera named {camera!r}. Its cameras: {', '.join(h for h in have if h) or 'none'}")
+        return cid
+
     def render(self, camera: str, depth: bool = False) -> msgs.Image:
-        cid = self._mj.mj_name2id(self.model, self._mj.mjtObj.mjOBJ_CAMERA, camera)
-        r = self._context()
-        r.update_scene(self.data, camera=camera)
-        if depth:
+        """One frame from `camera`, now. Safe to call from any thread."""
+        if self._mj is None:
+            raise RuntimeError("the renderer is not set up yet: call app.setup() (or app.step()) before render()")
+        cid = self._camera_id(camera)
+
+        def draw(r):
+            r.update_scene(self.data, camera=camera)
+            if not depth:
+                return r.render().copy()
             r.enable_depth_rendering()
-            data = r.render().copy()
-            r.disable_depth_rendering()
-            return msgs.Image(data=data, camera=camera, encoding="depth32f", fovy=float(self.model.cam_fovy[cid]), pose=self._pose(camera), t=float(self.data.time))
-        img = msgs.Image(data=r.render().copy(), camera=camera, fovy=float(self.model.cam_fovy[cid]), pose=self._pose(camera), t=float(self.data.time))
-        for p in self.passes:
-            out = p(img, self)
-            if out is not None:
-                img = out
+            try:
+                return r.render().copy()
+            finally:
+                r.disable_depth_rendering()
+        data = self._on_render_thread(draw)
+        fovy, pose, t = float(self.model.cam_fovy[cid]), self._pose(camera), float(self.data.time)
+        if depth:
+            return msgs.Image(data=data, camera=camera, encoding="depth32f", fovy=fovy, pose=pose, t=t)
+        img = msgs.Image(data=data, camera=camera, fovy=fovy, pose=pose, t=t)
+        for i, p in enumerate(self.passes):
+            who = getattr(p, "__name__", type(p).__name__)
+            try:
+                out = p(img, self)
+            except Exception as e:
+                e.add_note(f"(in render pass {i}, {who}, on camera {camera!r})")
+                raise
+            if out is None:
+                continue                # the pass changed the image in place, or only looked at it
+            if not isinstance(out, msgs.Image):
+                raise ValueError(f"render pass {i} ({who}) returned a {type(out).__name__}; a pass returns an rf.Image, "
+                                 f"or None to keep the image it was given")
+            img = out
         return img
 
     def step(self, t: float):
@@ -88,12 +152,12 @@ class MujocoRenderer(Renderer):
                 self.bus.publish(msgs.DEPTH.format(name=c), self.render(c, depth=True), "mujoco-renderer")
 
     def close(self):
-        if self._r is not None:
-            try:
-                self._r.close()
-            except Exception:
-                pass
-            self._r = None
+        with self._start:
+            th, self._thread = self._thread, None
+            if th is not None and th.is_alive():
+                self._jobs.put(None)        # the render thread closes its own context
+        if th is not None and th is not threading.current_thread():
+            th.join(timeout=5.0)
 
     def describe(self):
         return {**super().describe(), "cameras": list(self.cameras or []), "size": [self.width, self.height], "fps": self.fps}

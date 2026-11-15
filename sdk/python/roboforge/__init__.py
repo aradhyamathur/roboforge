@@ -18,6 +18,7 @@ from .callbacks import RateMonitor, Recorder, Viewer
 from .component import Callback, Link, Physics, Renderer
 from .control import PID, Async, Chunk, Controller, Obs, controller
 from .data import Dataset
+from .errors import ConfigError, SimulationError
 from .msgs import (ActuatorCommand, Clock, Image, Imu, Instruction, JointCommand, JointState, Pose, Setpoint, Twist,
                    VehicleCommand, VehicleStatus, VelocityCommand, velocity_command)
 from .registry import CALLBACKS, CONTROLLERS, LINKS, PHYSICS, RENDERERS

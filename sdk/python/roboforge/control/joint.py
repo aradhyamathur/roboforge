@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import msgs
+from ..errors import ConfigError
 from . import Controller
 from .pid import PID
 
@@ -19,11 +20,30 @@ class JointPD(Controller):
         self.rate = rate
         self.pid = PID(np.asarray(kp, float), np.asarray(ki, float), np.asarray(kd, float), integral_limit=2.0)
         self.limit = limit
-        self.target = None if target is None else np.asarray(target, float)
-        self._t = None
+        self.target = None if target is None else np.asarray(target, float).reshape(-1)
+        self._t = self._seen = None
+        self._names = []
 
     def setup(self, app):
         self._range = getattr(app.physics, "ctrl_range", None)
+        self._names = list(getattr(app.physics, "joint_names", []) or [])
+        robot = app.robot.name if app.robot else "this app"
+        if hasattr(app.physics, "joint_names") and not self._names:
+            raise ConfigError(f"the joint_pd controller drives joints, and {robot} has none. "
+                              f"Use it with an arm or another articulated robot.")
+        nu = len(getattr(app.physics, "actuator_names", self._names))
+        if self._names and nu != len(self._names):
+            raise ConfigError(f"the joint_pd controller needs one actuator per joint, but {robot} has {len(self._names)} joints "
+                              f"({', '.join(self._names)}) and {nu} actuators. Add a <motor> per joint to the model, or write your own controller.")
+        if self.target is not None:
+            self._check(self.target, "its `target`")
+
+    def _check(self, q, what):
+        n = len(self._names)
+        if n and len(q) != n:
+            raise ValueError(f"{what} has {len(q)} positions but the robot has {n} joints ({', '.join(self._names)})")
+        if not np.all(np.isfinite(q)):
+            raise ValueError(f"{what} contains nan or inf: {q}")
 
     def reset(self):
         self.pid.reset()
@@ -34,8 +54,10 @@ class JointPD(Controller):
         if js is None:
             return None
         cmd = obs.get(msgs.CMD_JOINT)
-        if cmd is not None and len(cmd.position):
-            self.target = np.asarray(cmd.position, float)
+        if cmd is not None and cmd is not self._seen and len(cmd.position):
+            target = np.asarray(cmd.position, float).reshape(-1)
+            self._check(target, "the cmd/joint target")
+            self.target, self._seen = target, cmd
         if self.target is None:
             self.target = js.position.copy()
         n = min(len(self.target), len(js.position))

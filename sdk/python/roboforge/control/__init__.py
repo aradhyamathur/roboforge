@@ -144,9 +144,11 @@ class Async(Controller):
         self._job = None
         self._wake = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self.inferences = 0
-        self.late = 0
-        self.latency = 0.0
+        self.inferences = 0         # completed calls of the wrapped controller
+        self.errors = 0             # calls that raised; the last exception is in `last_error`
+        self.last_error: Optional[BaseException] = None
+        self.late = 0               # steps answered by the fallback
+        self.latency = 0.0          # seconds the last call took
 
     def setup(self, app):
         self.inner.setup(app)
@@ -169,7 +171,10 @@ class Async(Controller):
                 result = self.inner.step(obs, t)
             except Exception as e:      # a failing policy must not kill the loop
                 result = None
-                print(f"roboforge: {self.name} raised {type(e).__name__}: {e}")
+                self.errors += 1
+                self.last_error = e
+                if self.errors <= 3 or self.errors % 100 == 0:
+                    print(f"roboforge: {self.name} raised {type(e).__name__}: {e} (error {self.errors}; the fallback applies)", flush=True)
             with self._lock:
                 self.latency = time.monotonic() - t0
                 self.inferences += 1
@@ -213,8 +218,8 @@ class Async(Controller):
     def close(self):
         self._stop = True
         self._wake.set()
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=2.0)      # a call still in flight is abandoned after that
         self.inner.close()
 
 
