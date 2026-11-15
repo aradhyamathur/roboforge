@@ -35,4 +35,23 @@ fn main() {
     code.push_str("];\n");
     let out = Path::new(&std::env::var("OUT_DIR").unwrap()).join("builtin_modules.rs");
     std::fs::write(out, code).unwrap();
+
+    // The Python SDK ships inside the binary too, so a fresh machine needs
+    // nothing but the IDE: it is unpacked into the RoboForge home on first use.
+    let sdk = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../sdk/python");
+    println!("cargo:rerun-if-changed={}", sdk.join("roboforge").display());
+    println!("cargo:rerun-if-changed={}", sdk.join("pyproject.toml").display());
+    let mut files = Vec::new();
+    walk(&sdk.join("roboforge"), &sdk, &mut files);
+    // The examples are the tutorials in docs/sdk.html; they ship too.
+    println!("cargo:rerun-if-changed={}", sdk.join("examples").display());
+    walk(&sdk.join("examples"), &sdk, &mut files);
+    files.retain(|(rel, _)| !rel.contains("__pycache__") && [".py", ".xml", ".yaml"].iter().any(|e| rel.ends_with(e)));
+    files.push(("pyproject.toml".into(), sdk.join("pyproject.toml")));
+    let mut code = String::from("pub static SDK_FILES: &[(&str, &str)] = &[\n");
+    for (rel, path) in files {
+        writeln!(code, "    ({rel:?}, include_str!({:?})),", path.canonicalize().unwrap()).unwrap();
+    }
+    code.push_str("];\n");
+    std::fs::write(Path::new(&std::env::var("OUT_DIR").unwrap()).join("sdk_files.rs"), code).unwrap();
 }

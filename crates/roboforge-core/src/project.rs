@@ -259,11 +259,18 @@ fn script(home: &Home, cat: &Catalog, proj: &Project, env: Option<&EnvSpec>, all
         // RoboStack environment has not been synced.
         let sys = match &e.ros_distro {
             Some(d) if d.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => format!(
-                "elif [ -f /opt/ros/{d}/setup.bash ]; then\n  echo 'roboforge: SDK environment {} not synced; using system ROS /opt/ros/{d}.' >&2\n  source /opt/ros/{d}/setup.bash\n",
+                "elif [ -f /opt/ros/{d}/setup.bash ]; then\n  echo 'roboforge: SDK environment {} not synced; using system ROS /opt/ros/{d}.' >&2\n  source /opt/ros/{d}/setup.bash\n  # A system ROS is built against the system Python; make `python3` mean that one\n  # even if another Python (conda, pyenv) comes first on PATH.\n  [ \"$(command -v python3)\" = /usr/bin/python3 ] || export PATH=\"/usr/bin:$PATH\"\n",
                 e.name
             ),
             _ => String::new(),
         };
+        // A project that brings its own interpreter (Environment ▸ Python for builds, or the
+        // light SDK environment) does not need the full environment to run, so stay quiet.
+        let own = match proj.setup.python.as_deref().map(str::trim).filter(|p| !p.is_empty() && main) {
+            Some(py) => format!("elif [ -x {} ]; then\n  :\n", path_shell(py)),
+            None => String::new(),
+        };
+        let sys = format!("{sys}{own}");
         s += &format!(
             "if [ -x {mm} ] && [ -d {prefix} ]; then\n  eval \"$({mm} shell hook -s bash)\"\n  micromamba activate {prefix}\n{sys}else\n  echo 'roboforge: SDK environment {} is not installed yet. Run \"Sync SDKs\" (or: roboforge sync).' >&2\nfi\n",
             e.name

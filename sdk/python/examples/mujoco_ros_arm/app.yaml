@@ -1,0 +1,24 @@
+# MuJoCo + ROS 2 app, built on the RoboForge SDK.
+# Run it:      python3 -m roboforge run app.yaml          (or the Run / Launch buttons)
+# Inspect it:  python3 -m roboforge info app.yaml         (components and signal wiring)
+# Every key under a component is an argument of that class; `type` may also be
+# `module:Class` for your own code in this folder. Override from the command line:
+#   python3 -m roboforge run app.yaml physics.substeps=2 --headless
+roboforge: 1
+name: mujoco_ros_arm
+
+robot: arm                 # bundled model; list them with: python3 -m roboforge zoo
+physics: {type: mujoco}
+renderer: {type: mujoco, width: 320, height: 240, fps: 10}
+
+links:
+  # State out (/clock, joint_states, odom, /tf, imu, camera/*), commands in (cmd_vel, joint_command, setpoint_pose).
+  - {type: ros2}
+
+controllers:
+  - {type: "controller:Wave", rate: 50}            # yours: joint targets (controller.py)
+  - {type: joint_pd, rate: 500}                    # built in: joint targets -> torques
+
+callbacks:
+  - {type: viewer}                                 # MuJoCo window; --headless skips it
+  # - {type: recorder, dir: runs/latest}           # record a dataset (export: python3 -m roboforge data export ...)

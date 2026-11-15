@@ -55,6 +55,8 @@ ol.steps { padding-left:22px; } ol.steps > li { margin-bottom:10px; }
   <a class="sub" href="#tb3-launch">2. The Launch dialog</a>
   <a class="sub" href="#tb3-stack">3. Launch the stack</a>
   <a class="sub" href="#tb3-map">4. Map, then navigate</a>
+  <a href="sdk.html"><strong>SDK guide →</strong></a>
+  <a href="#sdkproj">Projects on the SDK</a>
   <a href="#import">Importing any project</a>
   <a href="#configs">Launch configurations</a>
   <a href="#setup">Environment and setup scripts</a>
@@ -148,6 +150,17 @@ ros2 run nav2_map_server map_saver_cli -f ~/map                               # 
   <li>In Launch, choose <strong>Navigation ▸ save map</strong>. It writes <code>maps/map.yaml</code> and <code>maps/map.pgm</code> into the project.</li>
   <li>Stop the SLAM job, then launch <strong>Navigation ▸ navigation2</strong>. Once <code>maps/map.yaml</code> exists, <code>map:=…/maps/map.yaml</code> is added to the command automatically.</li>
 </ol>
+
+<h2 id="sdkproj">Projects on the RoboForge SDK</h2>
+<p>The <a href="sdk.html">RoboForge SDK</a> is a Python library, shipped with the IDE, in which the simulator, ROS 2 and MAVLink are interchangeable parts. The IDE creates, understands and launches projects built on it.</p>
+<table>
+  <tr><th>Where</th><th>What</th></tr>
+  <tr><td>New ▸ Build on the RoboForge SDK</td><td>The stack picker: Simulator (MuJoCo or none) × Robot (quadrotor, arm, wheeled base, or your own URDF / MJCF) × Autopilot link (MAVLink vehicle, PX4 in the loop, MAVLink client) × ROS 2. Quick picks cover MuJoCo + ROS 2, MuJoCo + MAVLink, ROS 2 + MAVLink and all three. It creates <code>app/app.yaml</code>, a starter controller or mission script, run configurations and a launch configuration.</td></tr>
+  <tr><td>Stack (header)</td><td>What the app is made of: robot, physics, renderer, controllers with their rates, each link with the signals it takes from and puts on the bus, and every signal with its source.</td></tr>
+  <tr><td>Stack ▸ Set up SDK environment</td><td>Creates a small Python environment with MuJoCo and pymavlink on top of the system Python, without sudo, and points the project at it.</td></tr>
+  <tr><td>Launch, Run menu, VS Code tasks</td><td>An <code>app.yaml</code> is recognised as “App: &lt;name&gt;”, its MuJoCo models get a viewer entry, and a mission script next to it is chained after the app in the suggested launch configuration.</td></tr>
+  <tr><td>SDK Manager</td><td>The SDK and pymavlink are components like any other.</td></tr>
+</table>
 
 <h2 id="import">Importing any project</h2>
 <p><strong>Open ▸ Import…</strong> brings in a folder that is not a RoboForge project, in the way Android Studio imports a project: it inspects the folder, shows what it found and what it will create, and only then creates the project. <strong>Nothing is written into the folder you import.</strong> RoboForge's own files (<code>roboforge.json</code>, <code>.roboforge/</code>) go to <code>~/roboforge-projects/&lt;name&gt;/</code>, and the imported folder is attached to that project as a workspace. Importing the same folder again just reopens the project.</p>

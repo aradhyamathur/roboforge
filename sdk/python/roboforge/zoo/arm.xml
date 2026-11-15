@@ -1,0 +1,35 @@
+<mujoco model="arm">
+  <!-- Three-joint arm (yaw, shoulder, elbow) driven by joint torques. -->
+  <compiler angle="degree"/>
+  <option timestep="0.002"/>
+  <visual><global offwidth="640" offheight="480"/></visual>
+  <default>
+    <joint damping="0.4" armature="0.01"/>
+    <geom rgba="0.76 0.31 0.04 1"/>
+  </default>
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="3 3 0.1" rgba="0.82 0.80 0.75 1"/>
+    <geom name="pedestal" type="cylinder" pos="0 0 0.05" size="0.08 0.05" rgba="0.14 0.14 0.13 1"/>
+    <camera name="overview" pos="1.3 -1.1 0.9" xyaxes="0.65 0.76 0 -0.33 0.28 0.90" fovy="50"/>
+    <body name="link1" pos="0 0 0.1">
+      <joint name="yaw" axis="0 0 1" range="-170 170"/>
+      <geom type="cylinder" fromto="0 0 0 0 0 0.12" size="0.045" mass="0.6"/>
+      <site name="imu" pos="0 0 0.06"/>
+      <body name="link2" pos="0 0 0.12">
+        <joint name="shoulder" axis="0 1 0" range="-100 100"/>
+        <geom type="capsule" fromto="0 0 0 0 0 0.30" size="0.03" mass="0.5"/>
+        <body name="link3" pos="0 0 0.30">
+          <joint name="elbow" axis="0 1 0" range="-140 140"/>
+          <geom type="capsule" fromto="0 0 0 0 0 0.25" size="0.025" mass="0.3"/>
+          <geom name="tip" type="sphere" pos="0 0 0.25" size="0.035" rgba="0.14 0.14 0.13 1" mass="0.05"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="yaw" joint="yaw" ctrlrange="-8 8"/>
+    <motor name="shoulder" joint="shoulder" ctrlrange="-12 12"/>
+    <motor name="elbow" joint="elbow" ctrlrange="-8 8"/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboForge SDK</title>
+<style>
+:root { color-scheme: light; --bg:#f4f1ea; --panel:#fbf9f4; --raise:#fff; --line:#d9d4c7; --text:#23221f; --mute:#6b675e; --accent:#c2500a; --ok:#2e7d3a; --bad:#b3261e;
+  --sans:"IBM Plex Sans","Inter",system-ui,sans-serif; --mono:"JetBrains Mono","IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg:#16171a; --panel:#1d1f23; --raise:#25282d; --line:#343840; --text:#e6e3dc; --mute:#9a968c; --accent:#ff8a3d; --ok:#7fc98a; --bad:#ff7a6e; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 var(--sans); }
+.wrap { display:grid; grid-template-columns: 230px minmax(0,1fr); max-width:1100px; margin:0 auto; }
+nav { position:sticky; top:0; align-self:start; height:100vh; overflow:auto; padding:24px 16px; border-right:1px solid var(--line); font-size:13px; }
+nav .brand { font:700 16px var(--mono); margin-bottom:14px; } nav .brand b { color:var(--accent); }
+nav a { display:block; color:var(--mute); text-decoration:none; padding:3px 0; } nav a:hover { color:var(--text); }
+nav a.sub { padding-left:12px; }
+main { padding:28px 36px 80px; min-width:0; }
+h1 { font:700 30px/1.15 var(--mono); letter-spacing:-.03em; margin:0 0 6px; }
+h2 { font:700 20px var(--mono); margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--line); }
+h3 { font:600 15px var(--sans); margin:24px 0 6px; }
+p, li { max-width:72ch; } .lead { color:var(--mute); font-size:16px; }
+code, pre, kbd { font-family:var(--mono); font-size:13px; }
+code { background:var(--raise); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px 14px; overflow:auto; line-height:1.5; }
+pre code { background:none; border:0; padding:0; }
+kbd { background:var(--raise); border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; }
+table { border-collapse:collapse; width:100%; margin:10px 0; font-size:14px; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--mute); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.note { border-left:3px solid var(--accent); background:var(--panel); padding:8px 14px; margin:14px 0; max-width:72ch; }
+ol.steps { padding-left:22px; } ol.steps > li { margin-bottom:10px; }
+/* mock of the Launch dialog */
+.mock { background:var(--panel); border:1px solid var(--line); border-radius:8px; max-width:760px; margin:16px 0; font-size:13px; line-height:1.45; }
+.mock .t { font:700 14px var(--mono); padding:10px 14px; border-bottom:1px solid var(--line); }
+.mock .b { padding:10px 14px; } .mock .f { padding:9px 14px; border-top:1px solid var(--line); display:flex; gap:8px; align-items:center; }
+.mock .h { font-weight:600; color:var(--mute); font-size:12px; margin:12px 0 4px; }
+.mock .r { display:flex; gap:8px; align-items:center; }
+.mock .sel { flex:1; background:var(--raise); border:1px solid var(--line); border-radius:5px; padding:4px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mock .btn { background:var(--raise); border:1px solid var(--line); border-radius:5px; padding:4px 10px; white-space:nowrap; }
+.mock .btn.p { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+.mock .c { font:12px var(--mono); color:var(--mute); margin:2px 0 0 24px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mock .badge { font:11px var(--mono); border:1px solid var(--line); border-radius:9px; padding:0 6px; color:var(--mute); margin-left:4px; }
+.grow { flex:1; } .mute { color:var(--mute); }
+@media (max-width: 800px) { .wrap { grid-template-columns:1fr; } nav { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:20px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <div class="brand">robo<b>forge</b> SDK</div>
+  <a href="index.html">← IDE guide</a>
+  <a href="#what">What it is</a>
+  <a href="#start">Start a project</a>
+  <a href="#tutorials">Tutorials</a>
+  <a href="#concepts">The parts</a>
+  <a href="#levels">Three levels of control</a>
+  <a href="#combos">Combinations</a>
+  <a href="#control">Controllers: PID to policies</a>
+  <a href="#ros">ROS 2 link</a>
+  <a href="#mavlink">MAVLink link</a>
+  <a href="#render">Rendering and datasets</a>
+  <a href="#robots">Your own robot</a>
+  <a href="#cli">Command line</a>
+  <a href="#env">Python environment</a>
+  <a href="#status">What is tested, what is not</a>
+</nav>
+<main>
+<h1>RoboForge SDK</h1>
+<p class="lead">A small Python library in which the simulator, the renderer, ROS 2 and MAVLink are interchangeable parts. You write the controller; the same code runs against MuJoCo, behind ROS topics, as a MAVLink vehicle, or on a real robot.</p>
+
+<h2 id="what">What it is</h2>
+<p>Most robotics stacks are glued together pairwise: a MuJoCo-to-ROS bridge, a PX4-to-Gazebo bridge, a MAVLink-to-ROS bridge. Each new combination needs new glue. Here every part publishes and subscribes named signals on one in-process <strong>bus</strong> (<code>state/pose</code>, <code>sensor/imu</code>, <code>cmd/actuators</code>…), so a new simulator or transport is one adapter and every combination already works.</p>
+<pre><code>import roboforge as rf
+
+app = rf.App(robot="quadrotor",                                    # bundled model
+             controllers=[rf.MultirotorController(rate=250)],      # setpoint -> motors
+             links=[rf.MavlinkLink(mode="vehicle"), rf.Ros2Link()])  # be a MAVLink vehicle, mirror on ROS 2
+app.run()</code></pre>
+<p>It is a library first: every part works on its own, <code>app.step()</code> lets you write the loop yourself, and <code>physics.raw</code>, <code>link.raw</code> hand you MuJoCo's, rclpy's and pymavlink's own objects whenever the abstraction is not enough.</p>
+
+<h2 id="start">Start a project</h2>
+<h3>From the IDE</h3>
+<ol class="steps">
+  <li><strong>New</strong>, then tick <strong>Build on the RoboForge SDK</strong>. Pick a quick combination (MuJoCo + ROS 2, MuJoCo + MAVLink, ROS 2 + MAVLink, All three) or set Simulator, Robot and Autopilot link yourself. ROS 2 is on when a ROS 2 distro is selected. Combinations that cannot work are refused with the reason.</li>
+  <li><strong>Create project</strong>. You get <code>app/app.yaml</code>, a starter <code>app/controller.py</code> (or <code>app/mission.py</code> for a MAVLink vehicle), run configurations, and a launch configuration.</li>
+  <li>The <strong>Stack</strong> view opens. If it says a package is missing, press <strong>Set up SDK environment</strong> (see <a href="#env">Python environment</a>), then open Stack again.</li>
+  <li><strong>▶ Run</strong>. For a MAVLink vehicle the launch configuration starts the app and then the mission script.</li>
+</ol>
+<div class="mock" role="img" aria-label="The Stack view for a quadrotor app">
+  <div class="t">Stack: quad_demo</div>
+  <div class="b">
+    <table style="margin:0">
+      <tr><td class="mute" style="width:140px">Robot</td><td><strong>quadrotor</strong> <span class="badge">multirotor</span></td></tr>
+      <tr><td class="mute">Physics</td><td><strong>mujoco</strong> step 2.0 ms, 4 actuators</td></tr>
+      <tr><td class="mute">Renderer</td><td><strong>mujoco</strong> cameras: front at 10 fps</td></tr>
+      <tr><td class="mute">Controllers</td><td><strong>MultirotorController</strong> 250 Hz</td></tr>
+      <tr><td class="mute">Links</td><td><strong>mavlink</strong> <span class="badge">vehicle</span><br>takes from the bus <span class="badge">state/pose</span> <span class="badge">state/twist</span> <span class="badge">cmd/vehicle</span><br>puts on the bus <span class="badge">state/status</span> <span class="badge">cmd/setpoint</span></td></tr>
+      <tr><td class="mute">Signals</td><td><code>clock</code>, <code>state/pose</code>, <code>state/twist</code>, <code>sensor/imu</code>, <code>sensor/camera/front</code> from mujoco; <code>cmd/actuators</code> from MultirotorController</td></tr>
+    </table>
+  </div>
+</div>
+<h3>From a terminal</h3>
+<pre><code>python3 -m roboforge zoo                       # bundled robots
+python3 -m roboforge run app.yaml              # run an app
+python3 -m roboforge info app.yaml             # its parts and wiring</code></pre>
+<p>Ready-made apps are the <a href="#tutorials">tutorials</a> below.</p>
+
+<h2 id="tutorials">Tutorials</h2>
+<p>Seven small examples, one per idea. Each is a toy: CPU only, no GPU, about 150 MB of memory, and a few seconds to a minute to run. They were all run on a desktop with 8 cores, 31 GB of memory and a GTX 1070, where the simulator steps about eight times faster than real time; a laptop is enough.</p>
+<p>The files ship with the IDE in <code>~/.roboforge/sdk/python/examples/</code> (and live in the repository under <code>sdk/python/examples/</code>). Copy a folder before editing it, or open it in the IDE with <strong>Open</strong>: the scanner recognises <code>app.yaml</code> and offers it in the Run menu.</p>
+<div class="note">Run the commands in a RoboForge terminal (Ctrl+`) of any SDK project, where <code>python3</code> already has the SDK, MuJoCo and pymavlink. Outside the IDE, use the SDK environment's Python: <code>~/.roboforge/envs/sdk-venv/bin/python</code>, after <code>source /opt/ros/jazzy/setup.bash</code> for the ROS tutorials. Add <code>--headless</code> to skip the viewer window; every tutorial works without it.</div>
+<pre><code>cp -r ~/.roboforge/sdk/python/examples ~/rf-tutorials &amp;&amp; cd ~/rf-tutorials</code></pre>
+
+<table>
+  <tr><th>#</th><th>Tutorial</th><th>Teaches</th><th>Needs</th></tr>
+  <tr><td>1</td><td><a href="#tut-arm"><code>mujoco_ros_arm</code></a></td><td>An app from <code>app.yaml</code>, your own controller, the simulator on ROS topics</td><td>ROS 2</td></tr>
+  <tr><td>2</td><td><a href="#tut-base"><code>diffdrive_ros</code></a></td><td>Driving a wheeled base with <code>cmd_vel</code>, odometry</td><td>ROS 2</td></tr>
+  <tr><td>3</td><td><a href="#tut-quad"><code>mujoco_mavlink_quad</code></a></td><td>The simulator as a MAVLink vehicle; a mission script</td><td>&nbsp;</td></tr>
+  <tr><td>4</td><td><a href="#tut-all"><code>mujoco_ros_mavlink_quad</code></a></td><td>All three at once</td><td>ROS 2</td></tr>
+  <tr><td>5</td><td><a href="#tut-bridge"><code>ros_mavlink_bridge</code></a></td><td>No simulator: MAVLink telemetry to ROS and back</td><td>ROS 2</td></tr>
+  <tr><td>6</td><td><a href="#tut-policy"><code>pid_to_policy.py</code></a></td><td>A slow model above a fast PID loop, with a fallback</td><td>&nbsp;</td></tr>
+  <tr><td>7</td><td><a href="#tut-record"><code>record_and_export.py</code></a></td><td>Recording a flight and exporting it for NeRF / splatting and SLAM</td><td>&nbsp;</td></tr>
+</table>
+
+<h3 id="tut-arm">1. An arm on ROS 2 topics</h3>
+<p>A three-joint arm in MuJoCo. Your controller (<code>controller.py</code>, 50 Hz) emits joint targets; the built-in joint controller (500 Hz) turns them into torques; the ROS 2 link mirrors everything on topics.</p>
+<pre><code>cd mujoco_ros_arm
+python3 -m roboforge info app.yaml             # the parts and who produces each signal
+python3 -m roboforge run app.yaml --headless   # Ctrl+C to stop</code></pre>
+<p>In a second terminal:</p>
+<pre><code>ros2 topic hz /clock                           # average rate: 500
+ros2 topic echo --once /joint_states           # three positions that change as the arm waves</code></pre>
+<p><strong>Try next:</strong> change the amplitudes in <code>controller.py</code> and run again. Then delete the <code>controller:Wave</code> line from <code>app.yaml</code> and command the arm from ROS instead:</p>
+<pre><code>ros2 topic pub -r 10 /joint_command sensor_msgs/msg/JointState "{position: [0.5, 0.2, -1.0]}"</code></pre>
+
+<h3 id="tut-base">2. A wheeled base and <code>cmd_vel</code></h3>
+<p>A differential-drive base. <code>controller.py</code> drives it in a circle; the built-in diff-drive controller converts forward speed and turn rate into wheel speeds.</p>
+<pre><code>cd diffdrive_ros
+python3 -m roboforge run app.yaml --headless</code></pre>
+<pre><code>ros2 topic echo --once /odom                   # position moves along a circle</code></pre>
+<p><strong>Try next:</strong> remove the <code>controller:Circle</code> line from <code>app.yaml</code> and drive it yourself. Five seconds at 0.2 m/s moves it about one metre:</p>
+<pre><code>ros2 topic pub -r 10 -t 50 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+ros2 run teleop_twist_keyboard teleop_twist_keyboard     # or the keyboard</code></pre>
+
+<h3 id="tut-quad">3. A quadrotor flown over MAVLink</h3>
+<p>The app is the vehicle: it answers MAVLink the way an autopilot does, with no PX4 installed. <code>mission.py</code> is an ordinary MAVLink client.</p>
+<pre><code>cd mujoco_mavlink_quad
+python3 -m roboforge run app.yaml --headless   # terminal 1
+python3 mission.py                             # terminal 2</code></pre>
+<p>The mission prints, in about 15 seconds:</p>
+<pre><code>armed: True
+takeoff: True
+at [1.78 0.   2.19]
+at [2.15 1.79 2.13]
+at [0.22 2.14 2.1 ]
+at [-0.04  0.27  2.08]
+landing: True
+landed and disarmed</code></pre>
+<p><strong>Try next:</strong> change the corners in <code>mission.py</code>; uncomment the <code>recorder</code> line in <code>app.yaml</code> to save the flight (tutorial 7 shows what to do with it).</p>
+
+<h3 id="tut-all">4. All three: MuJoCo, MAVLink and ROS 2</h3>
+<p>The same flight as tutorial 3 with one more line in <code>app.yaml</code>: a ROS 2 link. Nothing else changes, which is the point of the signal bus.</p>
+<pre><code>cd mujoco_ros_mavlink_quad
+python3 -m roboforge run app.yaml --headless   # terminal 1
+python3 mission.py                             # terminal 2
+ros2 topic echo /odom --field pose.pose.position          # terminal 3: watch it fly the square</code></pre>
+<p><code>ros2 topic list</code> shows <code>/clock</code>, <code>/odom</code>, <code>/imu</code>, <code>/tf</code> and <code>/camera/front/image_raw</code> while MAVLink carries the commands.</p>
+
+<h3 id="tut-bridge">5. ROS 2 and MAVLink with no simulator</h3>
+<p>A bridge for a real or separately simulated autopilot: MAVLink telemetry becomes <code>/odom</code> and <code>/tf</code>, and poses published on <code>/setpoint_pose</code> become MAVLink position targets. With no autopilot at hand, the vehicle from tutorial 3 stands in for one.</p>
+<pre><code>(cd mujoco_mavlink_quad &amp;&amp; python3 -m roboforge run app.yaml --headless)   # terminal 1: the stand-in autopilot
+(cd ros_mavlink_bridge &amp;&amp; python3 -m roboforge run app.yaml)               # terminal 2: the bridge
+ros2 topic echo --once /odom                                                 # terminal 3: the vehicle's pose, via MAVLink</code></pre>
+<p><strong>Try next:</strong> point the <code>url</code> in <code>ros_mavlink_bridge/app.yaml</code> at a PX4 SITL or a telemetry radio.</p>
+
+<h3 id="tut-policy">6. From a PID loop to a slow policy</h3>
+<p>Three controllers share the arm, each at its own rate: a stand-in for a large model (2 Hz, 300 ms per inference, returning a chunk of future targets), <code>rf.Async</code> (50 Hz) that runs it off the loop and plays the chunk out, and the PID loop (500 Hz) that drives the motors. No model download and no GPU: the "model" is a <code>time.sleep</code>.</p>
+<pre><code>python3 pid_to_policy.py 20 --headless</code></pre>
+<pre><code>roboforge: t=19.7s  x0.98 real time  async(SlowPolicy) 50 Hz  JointPD 500 Hz
+policy: 62 inferences, 300 ms each, 16 late steps; PID loop ran at 500 Hz throughout</code></pre>
+<p>The late steps are the fallback holding a safe pose while the first inference is still running. <strong>Try next:</strong> raise the sleep in <code>SlowPolicy</code> past the chunk length and watch the late count grow while the PID rate stays at 500 Hz. Replace <code>SlowPolicy</code> with a real model and nothing else changes.</p>
+
+<h3 id="tut-record">7. Record a flight and export a dataset</h3>
+<p>Flies a short tour with a 640×480 camera, records it, and exports it in the nerfstudio layout (for NeRF and Gaussian splatting) and the TUM layout (for SLAM). The camera poses are simulator ground truth, so there is no COLMAP step.</p>
+<pre><code>python3 record_and_export.py</code></pre>
+<pre><code>recorded 251 frames from camera 'front'
+nerfstudio: runs/flight/nerfstudio
+TUM:        runs/flight/tum</code></pre>
+<p>It takes about 4 seconds and writes 36 MB under <code>runs/flight</code>. Training on the result is the heavy step and is not part of this tutorial: <code>ns-train splatfacto --data runs/flight/nerfstudio</code> needs nerfstudio and a CUDA GPU. For a smaller dataset lower <code>width</code>, <code>height</code> or <code>fps</code> in the script.</p>
+
+<h2 id="concepts">The parts</h2>
+<table>
+  <tr><th>Part</th><th>What it does</th><th>Included</th></tr>
+  <tr><td><code>Robot</code></td><td>A model file plus its kind (profile), base body, cameras and parameters</td><td><code>from_zoo("quadrotor" | "arm" | "diffdrive")</code>, <code>from_mjcf</code>, <code>from_urdf</code></td></tr>
+  <tr><td><code>Physics</code></td><td>Steps the world; publishes state; applies <code>cmd/actuators</code></td><td><code>mujoco</code>; <code>none</code> (real robot or external simulator, wall-clock time)</td></tr>
+  <tr><td><code>Renderer</code></td><td>World state + camera → image; post-process passes</td><td><code>mujoco</code></td></tr>
+  <tr><td><code>Link</code></td><td>Connects the bus to the outside</td><td><code>ros2</code>, <code>mavlink</code> (vehicle, client, hil)</td></tr>
+  <tr><td><code>Controller</code></td><td>Your code: <code>step(obs, t) → action</code>, at its own rate</td><td><code>multirotor</code>, <code>joint_pd</code>, <code>diffdrive</code>, <code>PID</code>, <code>Async</code></td></tr>
+  <tr><td><code>Callback</code></td><td>Hooks around the loop</td><td><code>viewer</code>, <code>recorder</code>, <code>rate_monitor</code></td></tr>
+  <tr><td><code>App</code></td><td>Optional loop owner: order, clock, real-time pacing, shutdown</td><td><code>run()</code>, <code>step()</code>, <code>as_env()</code></td></tr>
+</table>
+<p>Each step runs in a fixed order: links in (may block, for lockstep) → controllers that are due → physics → renderer → links out → callbacks.</p>
+<h3>Conventions</h3>
+<p>World frame ENU (x east, y north, z up), body frame FLU (x forward, y left, z up), quaternions <code>(w, x, y, z)</code>, SI units. MAVLink's NED / FRD is converted inside the MAVLink link and nowhere else.</p>
+<h3>Standard signals</h3>
+<table>
+  <tr><th>Signal</th><th>Message</th><th>Meaning</th></tr>
+  <tr><td><code>clock</code></td><td><code>Clock</code></td><td>app time in seconds</td></tr>
+  <tr><td><code>state/joint</code></td><td><code>JointState</code></td><td>hinge and slide joints: names, position, velocity, effort</td></tr>
+  <tr><td><code>state/pose</code>, <code>state/twist</code></td><td><code>Pose</code>, <code>Twist</code></td><td>base pose in the world; linear velocity in the world, angular in the body</td></tr>
+  <tr><td><code>state/status</code></td><td><code>VehicleStatus</code></td><td>armed, mode, landed</td></tr>
+  <tr><td><code>sensor/imu</code></td><td><code>Imu</code></td><td>specific force and angular rate, body frame</td></tr>
+  <tr><td><code>sensor/camera/&lt;name&gt;</code></td><td><code>Image</code></td><td>RGB frame with intrinsics and camera-to-world pose</td></tr>
+  <tr><td><code>cmd/actuators</code></td><td><code>ActuatorCommand</code></td><td>raw actuator inputs, in the model's order</td></tr>
+  <tr><td><code>cmd/joint</code></td><td><code>JointCommand</code></td><td>joint position / velocity / effort targets</td></tr>
+  <tr><td><code>cmd/velocity</code></td><td><code>Twist</code></td><td>body-frame velocity command (cmd_vel)</td></tr>
+  <tr><td><code>cmd/setpoint</code></td><td><code>Setpoint</code></td><td>world position + yaw, or a velocity, for a vehicle</td></tr>
+  <tr><td><code>cmd/vehicle</code></td><td><code>VehicleCommand</code></td><td>arm, disarm, takeoff, land</td></tr>
+  <tr><td><code>cmd/instruction</code></td><td><code>Instruction</code></td><td>a natural-language goal, for policies that take one</td></tr>
+</table>
+
+<h2 id="levels">Three levels of control</h2>
+<h3>1. Config only</h3>
+<pre><code>roboforge: 1
+name: quad
+robot: quadrotor
+physics: {type: mujoco}
+renderer: {type: mujoco, fps: 10}
+links:
+  - {type: mavlink, mode: vehicle}
+controllers:
+  - {type: multirotor, rate: 250}
+callbacks:
+  - {type: viewer}</code></pre>
+<p>Every key under a part is an argument of that class. There is no inheritance between configs and no interpolation: what you read is what is built. Override from the command line with <code>path=value</code>: <code>python3 -m roboforge run app.yaml physics.substeps=2 links.0.url=udpout:10.0.0.2:14550</code>. Unknown keys are an error.</p>
+<h3>2. Your own classes</h3>
+<pre><code># controller.py, next to app.yaml
+import numpy as np
+import roboforge as rf
+
+class Patrol(rf.Controller):
+    def step(self, obs, t):
+        corner = [(0, 0, 1.5), (2, 0, 1.5), (2, 2, 2.0), (0, 2, 1.5)][int(t / 4) % 4]
+        return rf.Setpoint(position=np.array(corner, float))</code></pre>
+<pre><code>controllers:
+  - {type: "controller:Patrol", rate: 0.25}     # module:Class, looked up next to the config
+  - {type: multirotor, rate: 250}</code></pre>
+<p><code>step</code> may return nothing, one message (published on that message's standard signal), a list, or <code>{signal: message}</code>. A plain function works too: <code>@rf.controller(rate=50)</code>.</p>
+<h3>3. Everything exposed</h3>
+<pre><code>app = rf.App.from_config("app.yaml", controllers=[MyController()])   # replace a whole part
+app.setup()
+model, data = app.physics.raw          # mujoco.MjModel, mujoco.MjData
+node = app.links[0].raw                # the rclpy node (Ros2Link) or pymavlink connections (MavlinkLink)
+while app.time < 10:
+    app.step()                         # your loop
+    if data.ncon > 12: break
+app.close()</code></pre>
+<p>Your own backend or transport is a class with the same few methods as <code>roboforge.component.Physics</code> / <code>Renderer</code> / <code>Link</code>, used as <code>type: "mypkg.mysim:MySim"</code> or registered by name with <code>rf.PHYSICS.register("mysim", MySim)</code>. A replacement simulator is indistinguishable to the rest of the stack, because ROS and MAVLink compatibility lives in the links, not in the simulator.</p>
+
+<h2 id="combos">Combinations</h2>
+<table>
+  <tr><th>Combination</th><th>Config</th><th>What you get</th></tr>
+  <tr><td>MuJoCo + ROS 2</td><td>physics <code>mujoco</code>, link <code>ros2</code></td><td><code>/clock</code>, <code>joint_states</code>, <code>odom</code>, <code>/tf</code>, <code>imu</code>, camera images out; <code>cmd_vel</code>, <code>joint_command</code>, <code>setpoint_pose</code> in</td></tr>
+  <tr><td>MuJoCo + MAVLink</td><td>physics <code>mujoco</code>, link <code>mavlink</code> <code>vehicle</code></td><td>The simulation is a MAVLink vehicle: QGroundControl or any MAVLink client arms it, takes off, sends targets, lands. No PX4.</td></tr>
+  <tr><td>MuJoCo + PX4</td><td>physics <code>mujoco</code>, link <code>mavlink</code> <code>hil</code></td><td>MuJoCo is PX4 SITL's simulator, in lockstep. Experimental.</td></tr>
+  <tr><td>ROS 2 + MAVLink</td><td>physics <code>none</code>, links <code>mavlink</code> <code>client</code> + <code>ros2</code></td><td>A bridge: autopilot telemetry as <code>odom</code> / <code>/tf</code>, ROS pose setpoints as MAVLink position targets</td></tr>
+  <tr><td>All three</td><td>physics <code>mujoco</code>, links <code>mavlink</code> <code>vehicle</code> + <code>ros2</code></td><td>Fly over MAVLink while ROS tools watch</td></tr>
+  <tr><td>Simulation → real robot</td><td>change physics to <code>none</code></td><td>The same controllers, with state arriving through the links</td></tr>
+</table>
+
+<h2 id="control">Controllers: from a PID loop to a learned policy</h2>
+<p>The contract is one method, so the simple case stays simple:</p>
+<pre><code>pid = rf.PID(kp=40, ki=15, kd=5)
+
+def hold_elbow(obs, t):
+    js = obs.joint
+    u = np.zeros(3)
+    u[2] = pid(-1.0 - js.position[2], 0.002, rate=-js.velocity[2])
+    return rf.ActuatorCommand(values=u)
+
+rf.App(robot="arm", controller=hold_elbow).run()</code></pre>
+<p>Larger systems are several controllers side by side, each at its own rate, talking through the bus. A hierarchy is nothing more than that: a slow layer publishes <code>cmd/setpoint</code> or <code>cmd/joint</code>, a fast layer turns it into motor commands.</p>
+<table>
+  <tr><th>Need</th><th>How</th></tr>
+  <tr><td>Different rates</td><td><code>rate</code> on each controller (Hz). Omit it to run every physics step.</td></tr>
+  <tr><td>A slow model must not stall the loop</td><td><code>rf.Async(policy, rate=50, timeout=1.0, fallback=...)</code> runs it in a worker thread on a frozen copy of the observations</td></tr>
+  <tr><td>Action chunks</td><td>Return <code>rf.Chunk(actions=[...], dt=0.1)</code>; the actions are played out on time</td></tr>
+  <tr><td>The model is late or crashes</td><td><code>fallback</code>: a message, a function, or <code>"hold"</code>, used after <code>timeout</code> seconds without a result</td></tr>
+  <tr><td>Images, language</td><td><code>obs.camera("front")</code>, <code>obs.instruction</code></td></tr>
+  <tr><td>Training</td><td><code>app.as_env(reward=..., terminated=...)</code> gives a Gymnasium environment over any stack</td></tr>
+</table>
+<p><code>examples/pid_to_policy.py</code> shows a 2 Hz stand-in for a large model, with 300 ms inference and action chunks, above a 500 Hz PID loop that never slows down. Replacing the stand-in with a real VLA or world-model planner changes that one class.</p>
+
+<h2 id="ros">ROS 2 link</h2>
+<table>
+  <tr><th>Topic</th><th>Type</th><th>Direction (mode <code>sim</code>)</th></tr>
+  <tr><td><code>/clock</code></td><td>rosgraph_msgs/Clock</td><td>out, every step</td></tr>
+  <tr><td><code>joint_states</code></td><td>sensor_msgs/JointState</td><td>out</td></tr>
+  <tr><td><code>odom</code>, <code>/tf</code></td><td>nav_msgs/Odometry, tf2_msgs/TFMessage</td><td>out (odom → base_link)</td></tr>
+  <tr><td><code>imu</code></td><td>sensor_msgs/Imu</td><td>out</td></tr>
+  <tr><td><code>camera/&lt;name&gt;/image_raw</code></td><td>sensor_msgs/Image</td><td>out</td></tr>
+  <tr><td><code>cmd_vel</code></td><td>geometry_msgs/Twist</td><td>in</td></tr>
+  <tr><td><code>joint_command</code></td><td>sensor_msgs/JointState</td><td>in</td></tr>
+  <tr><td><code>actuators</code></td><td>std_msgs/Float64MultiArray</td><td>in</td></tr>
+  <tr><td><code>setpoint_pose</code></td><td>geometry_msgs/PoseStamped</td><td>in</td></tr>
+</table>
+<p>Messages are stamped in app time. <code>mode: robot</code> reverses the directions to drive a real or externally simulated robot. Options: <code>topics</code> renames any topic, <code>enable</code> restricts the list, <code>namespace</code>, <code>rate</code> (state publishing, default 100 Hz), and <code>profile: gazebo | isaac</code> for those simulators' usual topic names.</p>
+
+<h2 id="mavlink">MAVLink link</h2>
+<table>
+  <tr><th>Mode</th><th>The app is</th><th>Details</th></tr>
+  <tr><td><code>vehicle</code></td><td>the vehicle</td><td>Sends HEARTBEAT, ATTITUDE, LOCAL_POSITION_NED, GLOBAL_POSITION_INT, GPS_RAW_INT, SYS_STATUS, EXTENDED_SYS_STATE, HOME_POSITION. Handles arm / disarm, takeoff, land and SET_POSITION_TARGET_LOCAL_NED (position or velocity, with yaw). Refuses takeoff while disarmed and disarm while flying. Default endpoints: UDP 14550 (ground station) and 14540 (API).</td></tr>
+  <tr><td><code>client</code></td><td>a MAVLink client</td><td>Telemetry becomes <code>state/pose</code>, <code>state/twist</code>, <code>state/status</code>; <code>cmd/setpoint</code> is streamed as position targets; <code>link.arm()</code>, <code>takeoff(alt)</code>, <code>land()</code> return whether the autopilot accepted.</td></tr>
+  <tr><td><code>hil</code></td><td>PX4 SITL's simulator</td><td>Listens on TCP 4560; sends HIL_SENSOR (IMU, magnetometer, barometer) and HIL_GPS; steps only when PX4 answers with HIL_ACTUATOR_CONTROLS. <code>motor_map</code> reorders PX4's outputs to the model's actuators.</td></tr>
+</table>
+
+<h2 id="render">Rendering and datasets</h2>
+<p>A renderer is separate from the physics. It has one required method, <code>render(camera) → Image</code>, and a list of passes that run on every frame:</p>
+<pre><code>renderer = rf.MujocoRenderer(width=640, height=480, fps=10)
+
+@renderer.add_pass
+def night(image, renderer):
+    image.data = (image.data * 0.3).astype("uint8")     # any post-process, extra buffer, or a different picture entirely
+    return image</code></pre>
+<p>The <code>recorder</code> callback saves a run as a dataset, with simulator ground-truth poses for every frame:</p>
+<pre><code>ds = rf.Dataset("runs/flight")
+ds.export_nerfstudio("out/ns")      # transforms.json + images:  ns-train splatfacto --data out/ns
+ds.export_tum("out/tum")            # rgb.txt + groundtruth.txt, for SLAM systems and trajectory evaluation</code></pre>
+<p>or <code>python3 -m roboforge data export runs/flight --format nerfstudio --out out/ns</code>. <code>examples/record_and_export.py</code> flies a tour and exports both.</p>
+
+<h2 id="robots">Your own robot</h2>
+<pre><code>robot: {urdf: ~/robots/humanoid.urdf, profile: articulated}      # or {mjcf: model.xml, profile: arm, base: torso}</code></pre>
+<p><code>profile</code> is <code>articulated</code> (any jointed robot, including humanoids), <code>arm</code>, <code>multirotor</code> or <code>diffdrive</code>. Joints, actuators and an IMU are read from the model; for a multirotor the mapping from motors to thrust and torques is computed from the rotor sites, so the built-in controller flies any rotor layout. URDF mesh paths must resolve from the URDF's folder.</p>
+
+<h2 id="cli">Command line</h2>
+<table>
+  <tr><th>Command</th><th>Does</th></tr>
+  <tr><td><code>run CONFIG [key=value…] [--duration S] [--headless] [--no-realtime]</code></td><td>Run an app</td></tr>
+  <tr><td><code>info CONFIG [--json]</code></td><td>Parts and signal wiring, without starting the links</td></tr>
+  <tr><td><code>doctor [--json]</code></td><td>Which optional parts work in this environment, and how to fix the ones that do not</td></tr>
+  <tr><td><code>zoo</code></td><td>Bundled robots</td></tr>
+  <tr><td><code>data export DIR --format nerfstudio|tum --out OUT</code></td><td>Convert a recorded dataset</td></tr>
+</table>
+
+<h2 id="env">Python environment</h2>
+<p>The SDK ships inside the IDE and is unpacked to <code>~/.roboforge/sdk/python</code>; projects that use it get it on <code>PYTHONPATH</code>. Its optional parts need packages:</p>
+<table>
+  <tr><th>Part</th><th>Needs</th></tr>
+  <tr><td>MuJoCo physics and renderer</td><td><code>mujoco</code></td></tr>
+  <tr><td>MAVLink link</td><td><code>pymavlink</code></td></tr>
+  <tr><td>ROS 2 link</td><td>a ROS 2 environment (<code>rclpy</code>)</td></tr>
+  <tr><td>Gymnasium adapter</td><td><code>gymnasium</code></td></tr>
+</table>
+<p>Two ways to get them:</p>
+<ul>
+  <li><strong>Set up SDK environment</strong> (Stack view): creates <code>~/.roboforge/envs/sdk-venv</code>, a virtualenv on the system Python (so a system ROS 2 stays importable) with those packages, and sets it as the project's Python. No sudo; uses <code>uv</code> if installed, otherwise <code>python3 -m venv</code>.</li>
+  <li><strong>Sync SDKs</strong>: installs the project's full isolated environment, with the SDK, MuJoCo and pymavlink as components.</li>
+</ul>
+
+<h2 id="status">What is tested, and what is not</h2>
+<table>
+  <tr><th>Area</th><th>Status</th></tr>
+  <tr><td>Core, MuJoCo, the three bundled robots, controllers, renderer, recorder, exports, config, CLI</td><td>Automated tests (<code>sdk/python/tests</code>, 40 tests)</td></tr>
+  <tr><td>The tutorials</td><td>Every example app is started by the test suite; all seven were also run by hand with their expected output checked, including stopping with Ctrl+C and the IDE's Stop</td></tr>
+  <tr><td>Projects from the New Project picker</td><td>All 14 combinations it accepts are created through the IDE's API on an empty RoboForge home, set up, inspected and run (<code>tests/api/stacks.py</code>); the 5 it refuses are checked too</td></tr>
+  <tr><td>MAVLink vehicle ↔ client</td><td>Tested over real UDP: arm, takeoff, position target with yaw, land; refusals; telemetry seen by a bare pymavlink client</td></tr>
+  <tr><td>ROS 2 link</td><td>Tested against ROS 2 Jazzy: topics out, commands in, the ROS + MAVLink bridge</td></tr>
+  <tr><td>PX4 in the loop (<code>hil</code>)</td><td>The protocol and lockstep are tested against a stand-in for PX4. <strong>Not yet run against PX4 itself.</strong></td></tr>
+  <tr><td>QGroundControl, MAVSDK</td><td>Not tested. The vehicle sends the standard messages they use, but neither has been connected.</td></tr>
+  <tr><td>Gazebo and Isaac backends, splat renderer, SLAM / NeRF method wrappers, world-model physics</td><td>Not built yet (planned; see <code>docs/plans/sdk-framework-plan.md</code>)</td></tr>
+</table>
+</main>
+</div>
+</body>
+</html>

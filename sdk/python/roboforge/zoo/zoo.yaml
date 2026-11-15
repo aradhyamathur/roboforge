@@ -1,0 +1,19 @@
+quadrotor:
+  summary: X-layout quadrotor, 1 kg, with an IMU and a forward camera.
+  model: quadrotor.xml
+  profile: multirotor
+  base: base
+  cameras: [front]
+arm:
+  summary: Three-joint torque-controlled arm on a fixed base, with an overview camera.
+  model: arm.xml
+  profile: arm
+  base: link1
+  cameras: [overview]
+diffdrive:
+  summary: Differential-drive base with a caster, IMU and forward camera.
+  model: diffdrive.xml
+  profile: diffdrive
+  base: chassis
+  cameras: [front]
+  params: {wheel_radius: 0.05, wheel_separation: 0.30}

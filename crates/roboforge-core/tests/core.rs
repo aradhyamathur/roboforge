@@ -511,3 +511,51 @@ fn setup_overrides_reach_the_activation_script() {
     assert!(err.contains("setup script not found") && err.contains("missing.sh"), "{err}");
     let _ = std::fs::remove_dir_all(&d);
 }
+
+#[test]
+fn sdk_stacks_scaffold_and_are_recognised() {
+    use roboforge_core::project::{Project, Workspace};
+    use roboforge_core::sdk::{scaffold, Stack};
+    let st = |sim: &str, ros: bool, mav: &str, robot: &str| Stack { sim: sim.into(), ros, mavlink: mav.into(), robot: robot.into(), model: String::new() };
+    // Combinations that make no sense are refused with a reason.
+    assert!(st("mujoco", false, "vehicle", "arm").validate().unwrap_err().contains("quadrotor"));
+    assert!(st("none", false, "none", "").validate().unwrap_err().contains("without a simulator"));
+    assert!(st("mujoco", false, "client", "quadrotor").validate().unwrap_err().contains("no simulator"));
+    assert!(st("mujoco", false, "none", "custom").validate().unwrap_err().contains("URDF or MJCF"));
+
+    let files: std::collections::BTreeMap<String, String> = scaffold("quad", &st("mujoco", true, "vehicle", "quadrotor")).unwrap().into_iter().collect();
+    let yaml = &files["app.yaml"];
+    assert!(yaml.contains("\nroboforge: 1\n") && yaml.contains("robot: quadrotor") && yaml.contains("mode: vehicle") && yaml.contains("- {type: ros2}"));
+    assert!(yaml.contains("type: multirotor") && !yaml.contains("Patrol"), "MAVLink decides where to fly, so no patrol controller");
+    assert!(files.contains_key("mission.py") && !files.contains_key("controller.py"));
+    let arm = scaffold("arm", &st("mujoco", true, "none", "arm")).unwrap();
+    assert!(arm.iter().any(|(f, b)| f == "controller.py" && b.contains("class Wave")));
+    let bridge = scaffold("b", &st("none", true, "client", "")).unwrap();
+    assert!(bridge[0].1.contains("physics: {type: none") && bridge[0].1.contains("mode: client") && bridge.len() == 1);
+    assert_eq!(st("mujoco", false, "hil", "quadrotor").components(), ["roboforge-sdk", "mujoco", "pymavlink"]);
+
+    // The scanner finds the app and its mission script and proposes running them together.
+    let d = std::env::temp_dir().join(format!("rf-sdk-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(d.join("app/models")).unwrap();
+    for (f, body) in &files {
+        std::fs::write(d.join("app").join(f), body).unwrap();
+    }
+    std::fs::write(d.join("app/models/thing.xml"), "<mujoco model=\"t\"/>").unwrap();
+    std::fs::write(d.join("app/other.yaml"), "name: not an app\n").unwrap();
+    let mut p = Project::default();
+    p.name = "quad".into();
+    p.workspaces = vec![Workspace { kind: "app".into(), path: "app".into() }];
+    let scan = roboforge_core::tools::scan(&d, &p, &Default::default());
+    let app = scan.tools.iter().find(|t| t.id == "app:app.yaml").expect("app.yaml not detected");
+    assert_eq!((app.name.as_str(), app.role.as_str(), app.cmd.as_str()), ("App: quad", "sim", "python3 -m roboforge run app.yaml"));
+    assert!(app.detail.contains("MuJoCo + ROS 2 + MAVLink") && app.primary);
+    assert!(scan.tools.iter().any(|t| t.id == "mjcf:models/thing.xml" && t.cmd.contains("mujoco.viewer")));
+    assert!(!scan.tools.iter().any(|t| t.id.contains("other.yaml")));
+    assert!(scan.kind.contains("RoboForge SDK app"));
+    let cfg = scan.suggested.first().expect("no launch configuration suggested");
+    let cmds: Vec<&str> = cfg.steps.iter().map(|s| s.cmd.as_str()).collect();
+    assert_eq!(cmds, ["python3 -m roboforge run app.yaml", "python3 mission.py"]);
+    assert!(cfg.steps[1].wait > 0 && !cfg.steps[1].after_exit, "the app keeps running, so the mission starts after a pause");
+    let _ = std::fs::remove_dir_all(&d);
+}

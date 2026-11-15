@@ -169,6 +169,10 @@ fn main() {
     }
     let cat = Catalog::load(&home).unwrap_or_else(|e| die(e));
     let reg = Registry::load(&home, &cat).unwrap_or_else(|e| die(e));
+    // Keep the unpacked Python SDK in step with this build (a no-op when it already is).
+    if let Err(e) = roboforge_core::sdk::install(&home) {
+        eprintln!("roboforge: could not unpack the Python SDK: {e}");
+    }
 
     match cmd.as_str() {
         "ide" => {

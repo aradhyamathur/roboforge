@@ -1,0 +1,17 @@
+# ROS 2 + MAVLink app, built on the RoboForge SDK.
+# Run it:      python3 -m roboforge run app.yaml          (or the Run / Launch buttons)
+# Inspect it:  python3 -m roboforge info app.yaml         (components and signal wiring)
+# Every key under a component is an argument of that class; `type` may also be
+# `module:Class` for your own code in this folder. Override from the command line:
+#   python3 -m roboforge run app.yaml physics.substeps=2 --headless
+roboforge: 1
+name: ros_mavlink_bridge
+
+# No simulator: state comes in through the links below, time is the wall clock.
+physics: {type: none, rate: 50}
+
+links:
+  # Talks to an autopilot (PX4 SITL sends to 14540 by default).
+  - {type: mavlink, mode: client, url: "udpin:0.0.0.0:14540"}
+  # Telemetry out as odom + /tf, pose setpoints in on setpoint_pose.
+  - {type: ros2, enable: [odom, setpoint]}

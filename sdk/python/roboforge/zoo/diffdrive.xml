@@ -1,0 +1,39 @@
+<mujoco model="diffdrive">
+  <!-- Differential-drive base: two velocity-controlled wheels and a caster. -->
+  <compiler angle="degree"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+  <visual><global offwidth="640" offheight="480"/></visual>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.82 0.80 0.75" rgb2="0.70 0.68 0.63" width="256" height="256"/>
+    <material name="grid" texture="grid" texrepeat="10 10"/>
+  </asset>
+  <worldbody>
+    <light pos="0 0 5" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="20 20 0.1" material="grid" friction="1.0 0.005 0.0001"/>
+    <geom name="box_a" type="box" pos="2 0.6 0.2" size="0.2 0.2 0.2" rgba="0.76 0.31 0.04 1"/>
+    <geom name="box_b" type="box" pos="3 -1 0.2" size="0.2 0.2 0.2" rgba="0.12 0.37 0.66 1"/>
+    <body name="chassis" pos="0 0 0.07">
+      <freejoint name="root"/>
+      <geom name="body" type="box" size="0.16 0.11 0.03" mass="2.0" rgba="0.14 0.14 0.13 1"/>
+      <geom name="caster" type="sphere" pos="-0.12 0 -0.045" size="0.025" mass="0.1" condim="1" priority="1" rgba="0.4 0.4 0.4 1"/>
+      <site name="imu" pos="0 0 0"/>
+      <camera name="front" pos="0.17 0 0.03" xyaxes="0 -1 0 0 0 1" fovy="70"/>
+      <body name="wheel_left" pos="0.05 0.15 -0.02">
+        <joint name="wheel_left" axis="0 1 0" damping="0.02" armature="0.005"/>
+        <geom type="cylinder" fromto="0 -0.012 0 0 0.012 0" size="0.05" mass="0.2" rgba="0.76 0.31 0.04 1" friction="1.2 0.005 0.0001"/>
+      </body>
+      <body name="wheel_right" pos="0.05 -0.15 -0.02">
+        <joint name="wheel_right" axis="0 1 0" damping="0.02" armature="0.005"/>
+        <geom type="cylinder" fromto="0 -0.012 0 0 0.012 0" size="0.05" mass="0.2" rgba="0.76 0.31 0.04 1" friction="1.2 0.005 0.0001"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <velocity name="wheel_left" joint="wheel_left" kv="0.5" ctrlrange="-30 30"/>
+    <velocity name="wheel_right" joint="wheel_right" kv="0.5" ctrlrange="-30 30"/>
+  </actuator>
+  <sensor>
+    <accelerometer name="imu_accel" site="imu"/>
+    <gyro name="imu_gyro" site="imu"/>
+  </sensor>
+</mujoco>

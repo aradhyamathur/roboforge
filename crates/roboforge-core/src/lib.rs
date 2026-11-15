@@ -8,6 +8,7 @@ pub mod paths;
 pub mod plan;
 pub mod project;
 pub mod resolve;
+pub mod sdk;
 pub mod state;
 pub mod templates;
 pub mod tools;
