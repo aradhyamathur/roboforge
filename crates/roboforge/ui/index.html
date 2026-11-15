@@ -1082,7 +1082,7 @@ async function newProject() {
     robot: h('select', { id: 'sk-robot', 'aria-label': 'Robot' }, h('option', { value: 'quadrotor' }, 'Quadrotor'), h('option', { value: 'arm' }, 'Robot arm'), h('option', { value: 'diffdrive' }, 'Wheeled base (diff-drive)'), h('option', { value: 'custom' }, 'My own URDF / MJCF (arms, humanoids, anything)')),
     model: h('input', { type: 'text', id: 'sk-model', class: 'mono', placeholder: '~/robots/humanoid.urdf  or  model.xml', style: 'display:none' }),
     mav: h('select', { id: 'sk-mav', 'aria-label': 'Autopilot link' }, h('option', { value: 'none' }, 'None'), h('option', { value: 'vehicle' }, 'MAVLink vehicle (QGroundControl / MAVSDK connect, no PX4 needed)'),
-      h('option', { value: 'hil' }, 'PX4 in the loop (experimental)'), h('option', { value: 'client' }, 'MAVLink client (talk to an existing autopilot)')),
+      h('option', { value: 'hil' }, 'PX4 in the loop (needs a PX4 SITL build)'), h('option', { value: 'client' }, 'MAVLink client (talk to an existing autopilot)')),
     note: h('div', { class: 'status', id: 'sk-note', role: 'status' }),
   };
   const stack = () => ({ sim: sk.sim.value, ros: !!ros.value && !ros.value.startsWith('ros1'), mavlink: sk.mav.value, robot: sk.sim.value === 'mujoco' ? sk.robot.value : '', model: sk.model.value.trim() });

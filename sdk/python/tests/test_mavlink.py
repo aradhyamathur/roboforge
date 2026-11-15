@@ -133,7 +133,10 @@ def test_hil_lockstep_with_a_stand_in_autopilot(free_port):
         app.setup()
         px4.start()
         app.run(steps=300)
-        assert len(samples) == 300, f"lockstep broken: {len(samples)} sensor samples for 300 steps"
+        # Sensor samples go out at 250 Hz: one for every two 2 ms physics steps.
+        assert 149 <= len(samples) <= 151, f"lockstep broken: {len(samples)} sensor samples for 300 steps"
+        assert link.late_answers == 0
+        assert link.motor_map == [2, 3, 0, 1], "PX4 order is front-right, rear-left, front-left, rear-right"
         assert np.allclose(app.bus.latest("cmd/actuators").values, 0.5)
         first, last = samples[0], samples[-1]
         # Four rotors at half of 6.5 N on a 1 kg vehicle: 13 m/s^2 of specific force,
@@ -142,7 +145,8 @@ def test_hil_lockstep_with_a_stand_in_autopilot(free_port):
         assert 940 < first.abs_pressure < 960, "pressure should match ~488 m altitude"
         assert abs(np.hypot(last.xmag, last.ymag) - 0.21) < 0.02 and abs(last.zmag - 0.43) < 0.02
         usec = [s.time_usec for s in samples]
-        assert usec == sorted(usec) and usec[-1] - usec[0] == pytest.approx(299 * 2000, abs=5)
+        assert usec[0] >= 1_000_000, "PX4 rejects a first sample stamped 0"
+        assert usec == sorted(usec) and set(np.diff(usec)) == {4000}
         assert app.bus.latest("state/pose").position[2] > 0.3, "throttle 0.5 is above hover, so it should climb"
     finally:
         stop.set()
@@ -157,3 +161,34 @@ def test_hil_reports_a_missing_autopilot(free_port):
     with pytest.raises(TimeoutError, match="no autopilot connected"):
         app.step()
     app.close()
+
+
+def test_hil_stops_when_the_autopilot_goes_away(free_port):
+    """Once the autopilot has flown and then exits, the app must fail, not crawl."""
+    from pymavlink import mavutil
+    port = free_port(socket.SOCK_STREAM)
+    link = rf.MavlinkLink(mode="hil", url=f"tcpin:127.0.0.1:{port}", connect_timeout=10.0, lockstep_timeout=0.05)
+    app = rf.App(robot="quadrotor", links=[link], realtime=False)
+
+    def short_lived():
+        conn = None
+        while conn is None:
+            try:
+                conn = mavutil.mavlink_connection(f"tcp:127.0.0.1:{port}", source_system=1)
+            except Exception:
+                time.sleep(0.05)
+        for _ in range(20):
+            m = conn.recv_match(type="HIL_SENSOR", blocking=True, timeout=1.0)
+            if m is not None:
+                conn.mav.hil_actuator_controls_send(m.time_usec, [0.0] * 16, 129, 0)
+        # ...and then it stops answering
+
+    th = threading.Thread(target=short_lived, daemon=True)
+    try:
+        app.setup()
+        th.start()
+        with pytest.raises(ConnectionError, match="stopped answering"):
+            app.run(steps=2000)
+    finally:
+        app.close()
+        th.join(timeout=3.0)

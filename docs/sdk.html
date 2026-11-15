@@ -311,9 +311,20 @@ rf.App(robot="arm", controller=hold_elbow).run()</code></pre>
 <table>
   <tr><th>Mode</th><th>The app is</th><th>Details</th></tr>
   <tr><td><code>vehicle</code></td><td>the vehicle</td><td>Sends HEARTBEAT, ATTITUDE, LOCAL_POSITION_NED, GLOBAL_POSITION_INT, GPS_RAW_INT, SYS_STATUS, EXTENDED_SYS_STATE, HOME_POSITION. Handles arm / disarm, takeoff, land and SET_POSITION_TARGET_LOCAL_NED (position or velocity, with yaw). Refuses takeoff while disarmed and disarm while flying. Default endpoints: UDP 14550 (ground station) and 14540 (API).</td></tr>
-  <tr><td><code>client</code></td><td>a MAVLink client</td><td>Telemetry becomes <code>state/pose</code>, <code>state/twist</code>, <code>state/status</code>; <code>cmd/setpoint</code> is streamed as position targets; <code>link.arm()</code>, <code>takeoff(alt)</code>, <code>land()</code> return whether the autopilot accepted.</td></tr>
-  <tr><td><code>hil</code></td><td>PX4 SITL's simulator</td><td>Listens on TCP 4560; sends HIL_SENSOR (IMU, magnetometer, barometer) and HIL_GPS; steps only when PX4 answers with HIL_ACTUATOR_CONTROLS. <code>motor_map</code> reorders PX4's outputs to the model's actuators.</td></tr>
+  <tr><td><code>client</code></td><td>a MAVLink client</td><td>Telemetry becomes <code>state/pose</code>, <code>state/twist</code>, <code>state/status</code>; <code>cmd/setpoint</code> is streamed as position targets; <code>link.arm()</code>, <code>takeoff(alt)</code>, <code>land()</code> return whether the autopilot accepted. With PX4 on the other end it asks for OFFBOARD mode once targets are flowing and converts the takeoff height to PX4's above-sea-level convention.</td></tr>
+  <tr><td><code>hil</code></td><td>PX4 SITL's simulator</td><td>Listens on TCP 4560; sends HIL_SENSOR (IMU, magnetometer, barometer) and HIL_GPS; in lockstep: after PX4's first motor command, the simulator advances only when PX4 has answered the last sample with HIL_ACTUATOR_CONTROLS. Samples go out at <code>sensor_rate</code> (250 Hz) with a little noise (<code>sensor_noise</code>), because PX4 rejects readings that never change. PX4's motor order is matched to the model's rotor layout automatically for an X quadrotor; <code>motor_map</code> overrides it. If PX4 exits, the app stops with an error.</td></tr>
 </table>
+
+<h3 id="px4">Flying a real PX4 in the simulator</h3>
+<p>PX4 runs as its own program and uses the app as its simulator. Build PX4 SITL once (about ten minutes; Gazebo is not needed):</p>
+<pre><code>cmake -S ~/PX4-Autopilot -B ~/px4-build -G Ninja -DCONFIG=px4_sitl_default
+ninja -C ~/px4-build px4</code></pre>
+<p>Create a project with <strong>Autopilot link: PX4 in the loop</strong> (or use <code>tests/px4/app.yaml</code>), start the app, then start PX4 with its "no simulator" airframe from an empty working folder:</p>
+<pre><code>python3 -m roboforge run app.yaml --headless                      # terminal 1: waits for PX4 on TCP 4560
+mkdir -p ~/px4-run &amp;&amp; cd ~/px4-run                                # terminal 2
+PX4_SYS_AUTOSTART=10016 PX4_SIM_MODEL=none_iris ~/px4-build/bin/px4 -d ~/px4-build/etc -w . -s etc/init.d-posix/rcS</code></pre>
+<p>PX4 prints <code>Ready for takeoff!</code> after a few seconds of sensor data. Anything that flies PX4 now flies the MuJoCo vehicle on UDP 14540: the mission script from tutorial 3 works unchanged (<code>python3 mission.py</code>), as does a plain pymavlink or MAVSDK program. <code>tests/px4/run.sh</code> and <code>tests/px4/client.sh</code> do all of this in one command each.</p>
+<div class="note">A PX4 binary built on another machine or in a container may not start here (<code>GLIBC_2.4x not found</code>). Build it on the machine that runs it. Build into a separate folder, as above, to leave an existing <code>build/</code> alone.</div>
 
 <h2 id="render">Rendering and datasets</h2>
 <p>A renderer is separate from the physics. It has one required method, <code>render(camera) → Image</code>, and a list of passes that run on every frame:</p>
@@ -361,13 +372,13 @@ ds.export_tum("out/tum")            # rgb.txt + groundtruth.txt, for SLAM system
 <h2 id="status">What is tested, and what is not</h2>
 <table>
   <tr><th>Area</th><th>Status</th></tr>
-  <tr><td>Core, MuJoCo, the three bundled robots, controllers, renderer, recorder, exports, config, CLI</td><td>Automated tests (<code>sdk/python/tests</code>, 40 tests)</td></tr>
+  <tr><td>Core, MuJoCo, the three bundled robots, controllers, renderer, recorder, exports, config, CLI</td><td>Automated tests (<code>sdk/python/tests</code>, 42 tests)</td></tr>
   <tr><td>The tutorials</td><td>Every example app is started by the test suite; all seven were also run by hand with their expected output checked, including stopping with Ctrl+C and the IDE's Stop</td></tr>
   <tr><td>Projects from the New Project picker</td><td>All 14 combinations it accepts are created through the IDE's API on an empty RoboForge home, set up, inspected and run (<code>tests/api/stacks.py</code>); the 5 it refuses are checked too</td></tr>
   <tr><td>MAVLink vehicle ↔ client</td><td>Tested over real UDP: arm, takeoff, position target with yaw, land; refusals; telemetry seen by a bare pymavlink client</td></tr>
   <tr><td>ROS 2 link</td><td>Tested against ROS 2 Jazzy: topics out, commands in, the ROS + MAVLink bridge</td></tr>
-  <tr><td>PX4 in the loop (<code>hil</code>)</td><td>The protocol and lockstep are tested against a stand-in for PX4. <strong>Not yet run against PX4 itself.</strong></td></tr>
-  <tr><td>QGroundControl, MAVSDK</td><td>Not tested. The vehicle sends the standard messages they use, but neither has been connected.</td></tr>
+  <tr><td>PX4 in the loop (<code>hil</code>)</td><td>Flown with a real PX4 SITL (v1.18 beta, built from source on this machine): PX4 passes its preflight checks on the simulated sensors, takes off to 2.5 m, hovers within 1 cm horizontally, lands and disarms (<code>tests/px4/run.sh</code>). The SDK's own client then flies it through a square in OFFBOARD mode (<code>tests/px4/client.sh</code>). These two need a PX4 build, so they are not part of the automated suite, which uses a stand-in. Only the bundled quadrotor and PX4's generic quadrotor airframe were flown.</td></tr>
+  <tr><td>QGroundControl, MAVSDK</td><td>Not tested. The vehicle sends the standard messages they use, and real PX4 has been flown with pymavlink, but neither of these has been connected.</td></tr>
   <tr><td>Gazebo and Isaac backends, splat renderer, SLAM / NeRF method wrappers, world-model physics</td><td>Not built yet (planned; see <code>docs/plans/sdk-framework-plan.md</code>)</td></tr>
 </table>
 </main>

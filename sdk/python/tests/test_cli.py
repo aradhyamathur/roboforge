@@ -62,3 +62,18 @@ def test_doctor_and_bad_config(tmp_path):
     (tmp_path / "bad.yaml").write_text("robot: arm\ncontrollers:\n  - {type: nope}\n")
     r = cli("run", "bad.yaml", "--headless", cwd=tmp_path)
     assert r.returncode != 0 and "unknown controller 'nope'" in r.stderr
+
+
+def test_run_reports_a_missing_autopilot_in_one_line(tmp_path, free_port):
+    import socket
+    port = free_port(socket.SOCK_STREAM)
+    (tmp_path / "app.yaml").write_text(f"""roboforge: 1
+name: px4
+robot: quadrotor
+physics: {{type: mujoco}}
+links:
+  - {{type: mavlink, mode: hil, url: "tcpin:127.0.0.1:{port}", connect_timeout: 0.5}}
+""")
+    out = cli("run", "app.yaml", "--headless", "--duration", "1", cwd=tmp_path)
+    assert out.returncode == 1
+    assert "no autopilot connected" in out.stdout and "Traceback" not in out.stdout + out.stderr

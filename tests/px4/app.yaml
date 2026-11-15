@@ -1,0 +1,14 @@
+# MuJoCo as PX4 SITL's simulator (PX4-in-the-loop). Used by run.sh in this folder.
+roboforge: 1
+name: px4_in_the_loop
+
+robot: quadrotor
+physics: {type: mujoco}
+
+links:
+  - {type: mavlink, mode: hil, url: "tcpin:0.0.0.0:4560", connect_timeout: 120}
+
+controllers: []        # PX4 is the controller
+
+callbacks:
+  - {type: rate_monitor}

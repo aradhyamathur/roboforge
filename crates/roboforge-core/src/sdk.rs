@@ -149,7 +149,7 @@ pub fn scaffold(name: &str, st: &Stack) -> Result<Vec<(String, String)>, String>
             y += "  - {type: mavlink, mode: vehicle, urls: [\"udpout:127.0.0.1:14550\", \"udpout:127.0.0.1:14540\"]}\n";
         }
         "hil" => {
-            y += "  # PX4 SITL connects here and flies the simulated vehicle (experimental).\n";
+            y += "  # PX4 SITL connects here and flies the simulated vehicle (see Flying a real PX4 in the SDK guide).\n";
             y += "  # Start PX4 with its `none` simulator target after this app is running.\n";
             y += "  - {type: mavlink, mode: hil, url: \"tcpin:0.0.0.0:4560\", connect_timeout: 120}\n";
         }

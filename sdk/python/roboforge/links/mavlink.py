@@ -36,7 +36,8 @@ class MavlinkLink(Link):
 
     def __init__(self, mode: str = "vehicle", url: str = None, urls: list = None, system_id: int = 1, component_id: int = 1,
                  rate: float = 50.0, home=(47.397742, 8.545594, 488.0), takeoff_altitude: float = 2.5, land_speed: float = 0.7,
-                 autopilot: str = "generic", motor_map: list = None, lockstep_timeout: float = 1.0, connect_timeout: float = 30.0):
+                 autopilot: str = "generic", motor_map: list = None, lockstep_timeout: float = 1.0, connect_timeout: float = 30.0,
+                 sensor_rate: float = 250.0, sensor_noise: float = 1.0):
         if mode not in ("vehicle", "client", "hil"):
             raise ValueError("MavlinkLink mode must be 'vehicle', 'client' or 'hil'")
         self.mode = mode
@@ -46,6 +47,10 @@ class MavlinkLink(Link):
         self.home, self.takeoff_altitude, self.land_speed = tuple(home), takeoff_altitude, land_speed
         self.autopilot, self.motor_map = autopilot, motor_map
         self.lockstep_timeout, self.connect_timeout = lockstep_timeout, connect_timeout
+        self.sensor_rate, self.late_answers, self._hil_connected = sensor_rate, 0, False
+        self.sensor_noise, self._rng = sensor_noise, np.random.default_rng(0)
+        self._late_in_a_row = 0
+        self._peer_px4, self._peer_mode, self._amsl, self._offboard_from = False, 0, None, None
         self.conns: list = []
         self._lock = threading.Lock()
         self._stop = False
@@ -96,10 +101,10 @@ class MavlinkLink(Link):
             self._threads.append(th)
 
     def _due(self, key: str, t: float, hz: float) -> bool:
-        nxt = self._next.get(key, -1e9)
+        nxt = self._next.get(key, t)                 # the first call starts the schedule at t
         if t + 1e-9 < nxt:
             return False
-        self._next[key] = max(nxt + 1.0 / hz, t)
+        self._next[key] = max(nxt + 1.0 / hz, t + 0.5 / hz)
         return True
 
     def _send(self, fn):
@@ -274,9 +279,12 @@ class MavlinkLink(Link):
             self.connected = True
             conn.target_system, conn.target_component = m.get_srcSystem(), m.get_srcComponent()
             self.armed = bool(m.base_mode & self.mav.MAV_MODE_FLAG_SAFETY_ARMED)
+            self._peer_px4, self._peer_mode = m.autopilot == self.mav.MAV_AUTOPILOT_PX4, m.custom_mode
             self.bus.publish(msgs.STATUS, msgs.VehicleStatus(armed=self.armed, mode=self.flight_mode, landed=self.landed), "mavlink")
         elif t == "EXTENDED_SYS_STATE":
             self.landed = m.landed_state == self.mav.MAV_LANDED_STATE_ON_GROUND
+        elif t == "GLOBAL_POSITION_INT":
+            self._amsl = m.alt / 1000.0
         elif t == "ATTITUDE":
             self._att = (attitude_ned_to_enu(euler_to_mat(m.roll, m.pitch, m.yaw)), frd_to_flu([m.rollspeed, m.pitchspeed, m.yawspeed]))
         elif t == "LOCAL_POSITION_NED":
@@ -307,6 +315,8 @@ class MavlinkLink(Link):
         if name not in table:
             raise ValueError(f"unknown vehicle command {name!r}; use arm, disarm, takeoff or land")
         cmd, p = table[name]
+        if name == "takeoff" and self._peer_px4 and params.get("altitude") and self._amsl is not None:
+            p[6] = self._amsl + float(params["altitude"])      # PX4 reads the takeoff altitude as above sea level
         if name in ("land", "disarm"):
             # Stop repeating the last position target, or it would fight the landing.
             self._stream_from = self.bus.count(msgs.CMD_SETPOINT) + 1
@@ -328,6 +338,16 @@ class MavlinkLink(Link):
         ms = int(t * 1000) & 0xFFFFFFFF
         frame = self.mav.MAV_FRAME_LOCAL_NED
         yaw = math.pi / 2 - sp.yaw
+        if self._peer_px4 and self.armed and (self._peer_mode >> 16) & 0xFF != 6:
+            # PX4 follows position targets only in OFFBOARD mode, and only accepts that
+            # mode once targets are already arriving: ask for it a moment after they start.
+            if self._offboard_from is None:
+                self._offboard_from = t + 0.5
+            elif t >= self._offboard_from and self._due("offboard", t, 1.0):
+                self._send(lambda c: c.mav.command_long_send(c.target_system or 1, c.target_component or 1, self.mav.MAV_CMD_DO_SET_MODE, 0,
+                                                             self.mav.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 6, 0, 0, 0, 0, 0))
+        else:
+            self._offboard_from = None
         if sp.position is not None:
             p = enu_to_ned(sp.position)
             mask = 0b0000_1001_1111_1000       # position + yaw
@@ -347,39 +367,80 @@ class MavlinkLink(Link):
             self._controls = np.array(m.controls, float)
             self._controls_event.set()
 
+    def _px4_motor_map(self):
+        """Which PX4 output drives each of the model's rotors.
+
+        PX4 numbers a quadrotor X as front-right, rear-left, front-left, rear-right,
+        with the first two spinning counter-clockwise. The model's order and layout
+        are read from the physics backend, so any X quadrotor works unmapped."""
+        alloc = getattr(self.app.physics, "allocation", None)
+        n = len(getattr(self.app.physics, "actuator_names", []))
+        if not alloc or n != 4:
+            return list(range(n or 16))
+        M = np.asarray(alloc["matrix"])                 # rows: Fz, roll, pitch, yaw torque (body FLU)
+        px4 = {(True, False): 0, (False, True): 1, (True, True): 2, (False, False): 3}     # (front, left)
+        order = [px4[(bool(M[2, i] < 0), bool(M[1, i] > 0))] for i in range(4)]
+        if sorted(order) != [0, 1, 2, 3]:
+            return list(range(4))                       # not an X layout: leave the order alone
+        # A counter-clockwise rotor twists the body clockwise: negative yaw torque with z up.
+        if any((M[3, i] < 0) != (order[i] in (0, 1)) for i in range(4)):
+            print("roboforge: this model's rotors spin the other way round from PX4's quadrotor X; yaw will be reversed. Flip the yaw gear signs or set motor_map.", flush=True)
+        return order
+
     def _hil_step(self, t: float):
         imu, pose, twist = self.bus.latest(msgs.IMU), self.bus.latest(msgs.POSE), self.bus.latest(msgs.TWIST)
         if imu is None or pose is None or twist is None:
             return
-        usec = int(t * 1e6)
+        if not self._hil_connected:
+            # The autopilot connects to us. Nothing can be sent until it has, so wait for it.
+            end = time.monotonic() + self.connect_timeout
+            while not any(getattr(c, "port", None) is not None for c in self.conns):
+                if time.monotonic() > end:
+                    raise TimeoutError(f"no autopilot connected on {self.urls[0]} within {self.connect_timeout:.0f}s. Start PX4 SITL so it connects to this simulator.")
+                time.sleep(0.02)
+            self._hil_connected = True
+        if not self._due("sensor", t, self.sensor_rate):
+            return          # between sensor samples the last motor command stays in force
+        # PX4 takes its clock from these timestamps and rejects a sample stamped 0.
+        usec = int(t * 1e6) + 1_000_000
         R = attitude_enu_to_ned(pose.orientation)
         acc, gyro, mag = flu_to_frd(imu.accel), flu_to_frd(imu.gyro), R.T @ MAG_NED
         alt = self.home[2] + float(pose.position[2])
         pressure = 1013.25 * (1.0 - 2.25577e-5 * alt) ** 5.25588
+        if self.sensor_noise:
+            # An autopilot treats a reading that never changes as a stuck sensor.
+            k, rng = self.sensor_noise, self._rng
+            acc, gyro, mag = acc + rng.normal(0, 0.02 * k, 3), gyro + rng.normal(0, 0.002 * k, 3), mag + rng.normal(0, 0.002 * k, 3)
+            pressure += rng.normal(0, 0.01 * k)
+            alt_baro = alt + rng.normal(0, 0.08 * k)
+        else:
+            alt_baro = alt
         v = enu_to_ned(twist.linear)
         lat, lon = self._latlon(pose.position)
-        first = self._controls is None
-        if first:
-            # The autopilot connects to us. Nothing can be sent until it has, so wait for it.
-            end = time.monotonic() + self.connect_timeout
-            while time.monotonic() < end and not any(getattr(c, "port", None) is not None for c in self.conns):
-                time.sleep(0.02)
         self._controls_event.clear()
         self._send(lambda c: c.mav.hil_sensor_send(usec, acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2], mag[0], mag[1], mag[2],
-                                                   pressure, 0.0, alt, 20.0, 0x1FFF, 0))
+                                                   pressure, 0.0, alt_baro, 20.0, 0x1FFF, 0))
         if self._due("gps", t, 10.0):
             speed = float(np.hypot(v[0], v[1]))
             cog = int(math.degrees(math.atan2(v[1], v[0])) % 360 * 100)
             self._send(lambda c: c.mav.hil_gps_send(usec, 3, int(lat * 1e7), int(lon * 1e7), int(alt * 1000), 30, 40, int(speed * 100),
                                                     int(v[0] * 100), int(v[1] * 100), int(v[2] * 100), cog, 12))
+        if self._controls is None:
+            # PX4 is still booting: it needs a stream of samples to move its clock before
+            # it sends the first motor command, so do not block on an answer yet.
+            return
         # Lockstep: do not advance until the autopilot has answered this sample.
-        if not self._controls_event.wait(self.connect_timeout if first else self.lockstep_timeout):
-            if first:
-                raise TimeoutError(f"no autopilot connected on {self.urls[0]} within {self.connect_timeout:.0f}s. Start PX4 SITL so it connects to this simulator.")
+        if not self._controls_event.wait(self.lockstep_timeout):
+            self.late_answers += 1
+            self._late_in_a_row += 1
+            if self._late_in_a_row >= 5:
+                raise ConnectionError(f"the autopilot stopped answering on {self.urls[0]} (no motor command for {5 * self.lockstep_timeout:.0f}s). Did PX4 exit?")
             return          # a late answer: keep the previous motor command for this step
+        self._late_in_a_row = 0
         u = self._controls
-        if self.motor_map is not None:
-            u = u[self.motor_map]
+        if self.motor_map is None:
+            self.motor_map = self._px4_motor_map()
+        u = u[self.motor_map]
         n = len(getattr(self.app.physics, "actuator_names", [])) or len(u)
         self.bus.publish(msgs.CMD_ACTUATORS, msgs.ActuatorCommand(values=np.clip(u[:n], 0.0, 1.0)), "mavlink")
 

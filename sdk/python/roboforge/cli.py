@@ -144,11 +144,17 @@ def main(argv=None) -> int:
             raise KeyboardInterrupt
         signal.signal(signal.SIGINT, stop)
         signal.signal(signal.SIGTERM, stop)
+        failed = None
         try:
             app.run(duration=duration)
+        except (ConnectionError, TimeoutError) as e:       # e.g. the autopilot never connected, or went away
+            failed = e
         finally:
             t = app.time
             app.close()
+        if failed is not None:
+            print(f"roboforge: stopped at t={t:.2f}s: {failed}", flush=True)
+            return 1
         print(f"roboforge: stopped at t={t:.2f}s after {app.steps} steps", flush=True)
         return 0
     return 2
