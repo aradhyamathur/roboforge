@@ -249,6 +249,13 @@ fn code_workspace(dir: &Path, proj: &Project, env: &std::collections::HashMap<St
     let split = |k: &str| -> Vec<String> { env.get(k).map(|v| v.split(':').filter(|p| !p.is_empty()).map(String::from).collect()).unwrap_or_default() };
     let py_paths = split("PYTHONPATH");
     let mut includes: Vec<String> = Vec::new();
+    // The SDK's C++ controller header, when the SDK is on the path.
+    for p in &py_paths {
+        let inc = Path::new(p).join("roboforge/cpp/include");
+        if inc.is_dir() {
+            includes.push(inc.to_string_lossy().to_string());
+        }
+    }
     for p in split("AMENT_PREFIX_PATH").into_iter().chain(split("CMAKE_PREFIX_PATH")) {
         let inc = Path::new(&p).join("include");
         let glob = format!("{}/**", inc.display());
@@ -549,6 +556,12 @@ fn api(ctx: &Ctx, req: &Req, b: &Value) -> Result<Value, String> {
                 std::fs::create_dir_all(&app).map_err(|e| format!("{}: {e}", app.display()))?;
                 for (rel, body) in roboforge_core::sdk::scaffold(&proj.name, st)? {
                     std::fs::write(app.join(&rel), body).map_err(|e| format!("{rel}: {e}"))?;
+                }
+                if st.cpp() {
+                    // clangd (and so VS Code's C++ support) finds the SDK's header from this.
+                    let inc = roboforge_core::sdk::dir(home).join("roboforge/cpp/include");
+                    let clangd = format!("CompileFlags:\n  Add: [-std=c++17, -I{}]\n", inc.display());
+                    std::fs::write(app.join(".clangd"), clangd).map_err(|e| format!(".clangd: {e}"))?;
                 }
                 proj.workspaces.push(Workspace { kind: "app".into(), path: "app".into() });
                 let mut run: Vec<roboforge_core::project::RunConfig> = roboforge_core::sdk::run_configs(st).into_iter()

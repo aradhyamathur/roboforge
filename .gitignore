@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 MUJOCO_LOG.TXT
 _build/
+# Libraries the SDK builds from C++ controllers
+build/
+*.so

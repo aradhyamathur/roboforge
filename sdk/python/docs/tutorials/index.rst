@@ -1,9 +1,9 @@
 Tutorials
 =========
 
-Seventeen small tutorials, one idea each. The last four build your own
+Eighteen small tutorials, one idea each. Tutorials 14 to 17 build your own
 policy, renderer, physics solver and SLAM method, and show how little code
-each takes. They are toys on purpose: CPU only,
+each takes; 18 writes a controller in C++. They are toys on purpose: CPU only,
 no GPU, about 150 MB of memory, seconds to a minute to run. On a desktop with
 8 cores the simulator steps 17 to 30 times faster than real time
 (8 to 13 times with a 320×240 camera), so a laptop is enough.
@@ -104,6 +104,10 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
      - :doc:`custom_slam`
      - Your own sensors and SLAM method, scored with ATE and RPE
      -
+   * - 18
+     - :doc:`cpp_controller`
+     - A controller in C++, under a Python one; built for you or with CMake
+     - C++ compiler
 
 .. toctree::
    :hidden:
@@ -126,3 +130,4 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
    custom_renderer
    custom_solver
    custom_slam
+   cpp_controller

@@ -75,6 +75,17 @@ The bundled robots.
 
 Export a recording (:doc:`../tutorials/record_export`).
 
+``cpp``
+-------
+
+.. code-block:: console
+
+   $ python3 -m roboforge cpp include                 # the folder holding roboforge/controller.hpp
+   $ python3 -m roboforge cpp new NAME                # write NAME.cpp, a starting controller
+   $ python3 -m roboforge cpp build SOURCE [--out D]  # compile it; prints the library's path
+
+See :doc:`../guides/cpp`.
+
 Exit codes
 ----------
 

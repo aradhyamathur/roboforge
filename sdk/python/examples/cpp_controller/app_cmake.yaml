@@ -1,0 +1,10 @@
+# The same app, with the library built by CMake (see CMakeLists.txt).
+roboforge: 1
+name: cpp_controller_cmake
+
+robot: arm
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Wave", rate: 50}
+  - {type: cpp, library: build/cmake/libarm_pid.so, rate: 500, inputs: [cmd/joint], kp: 60, ki: 20, kd: 6}

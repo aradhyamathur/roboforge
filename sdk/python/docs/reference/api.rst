@@ -30,6 +30,14 @@ Controllers
 .. autoclass:: roboforge.Async
 .. autoclass:: roboforge.Chunk
 
+C++ controllers
+---------------
+
+.. autoclass:: roboforge.cpp.CppController
+.. autofunction:: roboforge.cpp.build
+.. autofunction:: roboforge.cpp.include_dir
+.. autofunction:: roboforge.cpp.new
+
 Policies
 --------
 

@@ -91,6 +91,13 @@ def resolve(config, overrides=()) -> tuple[dict, Path]:
     for k in ("links", "controllers", "callbacks"):
         if cfg.get(k) is not None and not isinstance(cfg[k], list):
             raise ConfigError(f"'{k}' must be a list (lines starting with '- '), got a {type(cfg[k]).__name__}")
+    # File paths inside components are relative to the config file, like the robot's model.
+    for section in ("controllers", "callbacks", "links"):
+        for spec in cfg.get(section) or []:
+            if isinstance(spec, dict):
+                for k in ("source", "library"):
+                    if isinstance(spec.get(k), str) and not Path(spec[k]).is_absolute():
+                        spec[k] = str(base / spec[k])
     robot = cfg.get("robot")
     if isinstance(robot, dict):
         for k in ("mjcf", "urdf"):

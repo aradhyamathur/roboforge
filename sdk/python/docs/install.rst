@@ -24,6 +24,9 @@ so you install only what you run.
    * - Training environments
      - ``gymnasium``
      - ``pip install gymnasium``
+   * - C++ controllers
+     - a C++17 compiler
+     - ``sudo apt install g++`` (CMake only if you want it)
 
 With the RoboForge IDE
 ----------------------

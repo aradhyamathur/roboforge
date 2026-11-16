@@ -1083,16 +1083,19 @@ async function newProject() {
     model: h('input', { type: 'text', id: 'sk-model', class: 'mono', placeholder: '~/robots/humanoid.urdf  or  model.xml', style: 'display:none' }),
     mav: h('select', { id: 'sk-mav', 'aria-label': 'Autopilot link' }, h('option', { value: 'none' }, 'None'), h('option', { value: 'vehicle' }, 'MAVLink vehicle (QGroundControl / MAVSDK connect, no PX4 needed)'),
       h('option', { value: 'hil' }, 'PX4 in the loop (needs a PX4 SITL build)'), h('option', { value: 'client' }, 'MAVLink client (talk to an existing autopilot)')),
+    lang: h('select', { id: 'sk-lang', 'aria-label': 'Controller language' }, h('option', { value: 'python' }, 'Python'), h('option', { value: 'cpp' }, 'C++ (built for you on first run)')),
     note: h('div', { class: 'status', id: 'sk-note', role: 'status' }),
   };
-  const stack = () => ({ sim: sk.sim.value, ros: !!ros.value && !ros.value.startsWith('ros1'), mavlink: sk.mav.value, robot: sk.sim.value === 'mujoco' ? sk.robot.value : '', model: sk.model.value.trim() });
+  const stack = () => ({ sim: sk.sim.value, ros: !!ros.value && !ros.value.startsWith('ros1'), mavlink: sk.mav.value, robot: sk.sim.value === 'mujoco' ? sk.robot.value : '', model: sk.model.value.trim(), language: sk.lang.value });
   const stackProblem = (st) => {
     if (ros.value.startsWith('ros1')) return 'The SDK works with ROS 2, not ROS 1.';
     if (st.sim === 'mujoco') {
       if (st.robot === 'custom' && !st.model) return 'Give the path to your URDF or MJCF file.';
       if ((st.mavlink === 'vehicle' || st.mavlink === 'hil') && st.robot !== 'quadrotor') return 'MAVLink vehicle and PX4-in-the-loop fly a multirotor: pick the quadrotor.';
       if (st.mavlink === 'client') return 'A MAVLink client talks to an existing autopilot: pick "None" as the simulator.';
+      if (st.language === 'cpp' && (st.mavlink === 'vehicle' || st.mavlink === 'hil')) return 'With a MAVLink vehicle or PX4 in the loop there is no controller of yours to write: pick Python.';
     } else {
+      if (st.language === 'cpp') return 'A C++ controller needs the simulator.';
       if (st.mavlink === 'vehicle' || st.mavlink === 'hil') return 'MAVLink vehicle and PX4-in-the-loop need the MuJoCo simulator.';
       if (st.mavlink !== 'client' && !st.ros) return 'Without a simulator, pick a MAVLink client and/or ROS 2 to get state from.';
     }
@@ -1102,18 +1105,18 @@ async function newProject() {
     const st = stack(), bad = sk.on.checked ? stackProblem(st) : '';
     sk.robot.disabled = st.sim !== 'mujoco';
     sk.model.style.display = st.sim === 'mujoco' && sk.robot.value === 'custom' ? '' : 'none';
-    for (const el of [sk.sim, sk.robot, sk.model, sk.mav]) el.closest('.field').style.opacity = sk.on.checked ? '' : '.45';
+    for (const el of [sk.sim, sk.robot, sk.model, sk.mav, sk.lang]) el.closest('.field').style.opacity = sk.on.checked ? '' : '.45';
     const parts = [st.sim === 'mujoco' ? 'MuJoCo' : null, st.ros ? 'ROS 2' : null, st.mavlink !== 'none' ? 'MAVLink' : null].filter(Boolean).join(' + ');
     sk.note.className = 'status ' + (bad ? 'bad' : 'mute');
     sk.note.textContent = !sk.on.checked ? 'Off: the project is made from the presets and modules below only.'
-      : bad || 'Creates app/app.yaml (' + parts + ')' + (st.sim === 'mujoco' && st.mavlink !== 'hil' && st.mavlink !== 'vehicle' ? ', app/controller.py with a starter controller' : '') + (st.mavlink === 'vehicle' ? ', app/mission.py that flies it over MAVLink' : '') + ', and run + launch configurations.';
+      : bad || 'Creates app/app.yaml (' + parts + ')' + (st.sim === 'mujoco' && st.mavlink !== 'hil' && st.mavlink !== 'vehicle' ? (st.language === 'cpp' ? ', app/controller.cpp with a starter controller in C++' : ', app/controller.py with a starter controller') : '') + (st.mavlink === 'vehicle' ? ', app/mission.py that flies it over MAVLink' : '') + ', and run + launch configurations.';
     return bad;
   };
   const combo = (label, sim, rosOn, mav, robot) => h('button', { class: 'quiet', 'data-combo': label, onclick: () => {
     sk.on.checked = true; sk.sim.value = sim; sk.mav.value = mav; if (robot) sk.robot.value = robot;
     if (rosOn && (!ros.value || ros.value.startsWith('ros1'))) ros.value = 'ros2-jazzy'; if (!rosOn) ros.value = '';
     stackSync(); check(); } }, label);
-  for (const el of [sk.on, sk.sim, sk.robot, sk.model, sk.mav]) el.addEventListener('input', stackSync);
+  for (const el of [sk.on, sk.sim, sk.robot, sk.model, sk.mav, sk.lang]) el.addEventListener('input', stackSync);
   ros.addEventListener('change', () => { check(); stackSync(); });
   const create = guard(async () => {
     const bad = stackSync();
@@ -1128,7 +1131,7 @@ async function newProject() {
     h('h3', {}, h('label', { style: 'cursor:pointer' }, sk.on, ' Build on the RoboForge SDK: one app, any combination')),
     h('p', { class: 'hint' }, 'A small Python framework where the simulator, ROS 2 and MAVLink are interchangeable parts wired through one bus. You get a config file, a starter controller you edit, and everything ready to run. Quick picks: ',
       combo('MuJoCo + ROS 2', 'mujoco', true, 'none', 'arm'), combo('MuJoCo + MAVLink', 'mujoco', false, 'vehicle', 'quadrotor'), combo('ROS 2 + MAVLink', 'none', true, 'client', ''), combo('All three', 'mujoco', true, 'vehicle', 'quadrotor')),
-    h('label', { class: 'field' }, 'Simulator', sk.sim), h('label', { class: 'field' }, 'Robot', h('div', {}, sk.robot, ' ', sk.model)), h('label', { class: 'field' }, 'Autopilot link', sk.mav),
+    h('label', { class: 'field' }, 'Simulator', sk.sim), h('label', { class: 'field' }, 'Robot', h('div', {}, sk.robot, ' ', sk.model)), h('label', { class: 'field' }, 'Autopilot link', sk.mav), h('label', { class: 'field' }, 'Your controller in', sk.lang),
     h('div', { class: 'field' }, 'Middleware', h('span', { class: 'mute' }, 'ROS 2 is on when a ROS 2 distro is selected above.')), sk.note,
     h('p', { class: 'mute' }, 'Other kinds of work get their own folders automatically: mav_ws/ for standalone MAVSDK and PX4 apps, sim/ for simulator assets, ml/ for training code, isaac/ for Isaac Sim. Change them later under Workspaces.'),
     h('h3', {}, 'Start from'), cards,

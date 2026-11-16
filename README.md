@@ -8,6 +8,7 @@
   <img alt="Linux" src="https://img.shields.io/badge/platform-Linux-informational">
   <img alt="Rust" src="https://img.shields.io/badge/IDE-Rust%20%2B%20Tauri-orange">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/SDK-Python%203.10%2B-blue">
+  <img alt="C++17" src="https://img.shields.io/badge/controllers-C%2B%2B17-00599C">
   <img alt="ROS 2 Jazzy" src="https://img.shields.io/badge/ROS%202-Jazzy%20tested-22314E">
   <img alt="PX4" src="https://img.shields.io/badge/PX4%20SITL-flown-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-v0.1-yellow">
@@ -83,6 +84,33 @@ $ python3 -m roboforge run app.yaml --tap --check
 `--tap` prints every signal's rate, source and value; `--check` tells you, in
 plain words, why a robot is not doing what you expected.
 
+**…or write the controller in C++**
+
+```cpp
+#include <roboforge/controller.hpp>
+
+class Hold : public rf::Controller {
+ public:
+  explicit Hold(const rf::Params& p) : kp_(p.number("kp", 40.0)) {}
+  rf::Action step(const rf::Obs& obs) override {
+    rf::Vec u(obs.joints());
+    for (int i = 0; i < obs.joints(); ++i) u[i] = -kp_ * obs.q(i) - 4.0 * obs.qd(i);
+    return rf::Action::actuators(u);
+  }
+ private:
+  double kp_;
+};
+RF_EXPORT_CONTROLLER(Hold)
+```
+
+```yaml
+controllers:
+  - {type: cpp, source: hold.cpp, rate: 500, kp: 60}    # compiled for you on first run
+```
+
+One header, no bindings, no build files: the SDK compiles, caches and loads
+it, and C++ and Python controllers mix freely in one app.
+
 ## Philosophy
 
 Robotics stacks are usually glued together: a bridge from this simulator to
@@ -101,6 +129,7 @@ Adding ROS 2 to an app is one line.
 | **Nothing is privileged** | Simulator, renderer and middleware each sit behind a small interface. Your own solver, renderer or SLAM method plugs in the same way the built-ins do |
 | **Physics and rendering are separate** | Any physics with any renderer: MuJoCo dynamics drawn by a Gaussian-splat renderer is one config line |
 | **Explicit over magic** | Flat config files with no inheritance or interpolation; `roboforge info` prints exactly what will run; time is explicit and runs are bit-for-bit deterministic |
+| **Your language** | Controllers in Python or C++, side by side in one app; C++ ROS 2 nodes and MAVLink clients connect through the links |
 | **From a PID loop to a VLA** | A controller is `step(obs, t)`. Each runs at its own rate; slow models run asynchronously with action chunks and a fallback, so a 2 Hz policy never slows a 500 Hz loop |
 | **Same code in simulation and on the robot** | Swapping `physics: mujoco` for `physics: none` plus a link is the whole move |
 | **Errors you can act on** | Every mistake names what was found, what is allowed and what was probably meant. Bad input from ROS or MAVLink is dropped with a warning, never passed to a motor |
@@ -132,7 +161,7 @@ them. The fair summary, including when to use something else:
   Gazebo, MuJoCo, Isaac Sim/Lab, PyTorch, gsplat, SLAM systems; side by side
   under `~/.roboforge`, no root
 - **New project**: presets, 15 mix-and-match modules, or the SDK **stack
-  picker** (simulator × robot × autopilot × ROS 2)
+  picker** (simulator × robot × autopilot × ROS 2 × Python or C++)
 - **Import** any folder: ROS workspaces, launch files, scripts and tests
   are detected and turned into run and launch configurations
 - **Terminals** (real PTYs), **launch configurations**, **embedded VS Code**,
@@ -146,7 +175,8 @@ them. The fair summary, including when to use something else:
   ground are added; floating bases for humanoids)
 - **Links**: ROS 2; MAVLink as vehicle, client, or **PX4-in-the-loop**
 - **Control**: PID, joint, multirotor and diff-drive controllers; async
-  policies with action chunks; `rf.Policy` for learned ones
+  policies with action chunks; `rf.Policy` for learned ones; **C++
+  controllers** from one header
 - **Rendering**: colour, depth, render passes, custom renderers
 - **Data**: recorder, nerfstudio and TUM export, `rf.eval` (ATE, RPE)
 - **Training**: any app as a Gymnasium env (stable-baselines3 tested)
@@ -165,6 +195,7 @@ them. The fair summary, including when to use something else:
 | MuJoCo + MAVLink + ROS 2 | ✅ fly over MAVLink while ROS watches |
 | MuJoCo + **real PX4 SITL** | ✅ PX4 passes preflight, takes off, hovers within 1 cm, lands; flies an OFFBOARD mission |
 | Your own physics / renderer / policy / SLAM | ✅ one class each ([tutorials 14–17](#tutorials)) |
+| A controller in C++ | ✅ bit-for-bit identical to the Python one it mirrors ([tutorial 18](#tutorials)) |
 
 <p align="center">
   <img src="docs/assets/splat_compare.png" alt="The same arm drawn by MuJoCo's renderer (left) and by a numpy Gaussian-splat renderer (right)" width="640"><br>
@@ -173,7 +204,7 @@ them. The fair summary, including when to use something else:
 
 ## Tutorials
 
-Seventeen small tutorials, CPU only, each runs in seconds to a minute. They
+Eighteen small tutorials, CPU only, each runs in seconds to a minute. They
 ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 
 | Track | Tutorials |
@@ -182,7 +213,7 @@ ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 | **Learning and data** | 7 From a PID loop to a slow policy · 8 Record and export for NeRF / splatting / SLAM · 11 Train with Gymnasium · 12 Render passes |
 | **Real autopilot, real models** | 9 Real PX4 flying the MuJoCo vehicle · 10 Your own URDF |
 | **Debugging** | 13 Find five mistakes in a broken app |
-| **Build your own** | 14 Policy (numpy, PyTorch, stable-baselines3) · 15 Renderer · 16 Physics solver · 17 Sensors and SLAM |
+| **Build your own** | 14 Policy (numpy, PyTorch, stable-baselines3) · 15 Renderer · 16 Physics solver · 17 Sensors and SLAM · 18 A controller in C++ |
 
 ## Documentation
 
@@ -199,8 +230,8 @@ ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 
 | Area | How |
 |---|---|
-| SDK | 81 tests: every example and tutorial is run, the docs build with warnings as errors and the code they show is executed |
-| Battle tests | 38 scenarios that try to break it: user mistakes, 10-minute runs, 300 apps opened and closed, hostile MAVLink and ROS peers, threads (`sdk/python/tests/battle`) |
+| SDK | 98 tests: every example and tutorial is run, C++ controllers are built (from source and with CMake) and checked against Python, the docs build with warnings as errors and the code they show is executed |
+| Battle tests | 39 scenarios that try to break it: user mistakes, 10-minute runs, 300 apps opened and closed, hostile MAVLink and ROS peers, threads (`sdk/python/tests/battle`) |
 | Real PX4 | v1.18 built from source, flown with pymavlink and with the SDK's own client (`tests/px4`) |
 | IDE | 17 core tests; all 14 stack-picker combinations created and run through the IDE's API (`tests/api`); headless-browser UI checks (`tests/ui`) |
 
@@ -356,6 +387,7 @@ python3 -m roboforge run app.yaml [--tap] [--check] [--headless] [path=value ...
 python3 -m roboforge info app.yaml        # parts and signal wiring
 python3 -m roboforge doctor               # what works in this environment
 python3 -m roboforge data export runs/x --format nerfstudio --out ns/
+python3 -m roboforge cpp new my_controller  # a C++ controller to start from; cpp build / cpp include
 ```
 </details>
 

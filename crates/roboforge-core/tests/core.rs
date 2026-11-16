@@ -516,7 +516,7 @@ fn setup_overrides_reach_the_activation_script() {
 fn sdk_stacks_scaffold_and_are_recognised() {
     use roboforge_core::project::{Project, Workspace};
     use roboforge_core::sdk::{scaffold, Stack};
-    let st = |sim: &str, ros: bool, mav: &str, robot: &str| Stack { sim: sim.into(), ros, mavlink: mav.into(), robot: robot.into(), model: String::new() };
+    let st = |sim: &str, ros: bool, mav: &str, robot: &str| Stack { sim: sim.into(), ros, mavlink: mav.into(), robot: robot.into(), ..Default::default() };
     // Combinations that make no sense are refused with a reason.
     assert!(st("mujoco", false, "vehicle", "arm").validate().unwrap_err().contains("quadrotor"));
     assert!(st("none", false, "none", "").validate().unwrap_err().contains("without a simulator"));
@@ -530,6 +530,14 @@ fn sdk_stacks_scaffold_and_are_recognised() {
     assert!(files.contains_key("mission.py") && !files.contains_key("controller.py"));
     let arm = scaffold("arm", &st("mujoco", true, "none", "arm")).unwrap();
     assert!(arm.iter().any(|(f, b)| f == "controller.py" && b.contains("class Wave")));
+    // In C++, the controller you write is controller.cpp, built by the SDK on first run.
+    let cpp = Stack { language: "cpp".into(), ..st("mujoco", false, "none", "arm") };
+    let files_cpp: std::collections::BTreeMap<String, String> = scaffold("arm", &cpp).unwrap().into_iter().collect();
+    assert!(files_cpp["controller.cpp"].contains("RF_EXPORT_CONTROLLER(Wave)") && !files_cpp.contains_key("controller.py"));
+    assert!(files_cpp["app.yaml"].contains("{type: cpp, source: controller.cpp, rate: 50}") && files_cpp["app.yaml"].contains("type: joint_pd"));
+    assert!(roboforge_core::sdk::run_configs(&cpp).iter().any(|(n, c)| n == "C++: build controller" && c.contains("cpp build controller.cpp")));
+    assert!(Stack { language: "cpp".into(), ..st("mujoco", false, "vehicle", "quadrotor") }.validate().unwrap_err().contains("pick Python"));
+    assert!(Stack { language: "rust".into(), ..st("mujoco", false, "none", "arm") }.validate().unwrap_err().contains("controller language"));
     let bridge = scaffold("b", &st("none", true, "client", "")).unwrap();
     assert!(bridge[0].1.contains("physics: {type: none") && bridge[0].1.contains("mode: client") && bridge.len() == 1);
     assert_eq!(st("mujoco", false, "hil", "quadrotor").components(), ["roboforge-sdk", "mujoco", "pymavlink"]);

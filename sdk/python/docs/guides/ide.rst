@@ -11,10 +11,12 @@ an app is a folder of text files and runs from any terminal.
    * - In the IDE
      - What it does
    * - **New ▸ Build on the RoboForge SDK**
-     - The stack picker: simulator × robot × autopilot link × ROS 2, with four
-       quick picks. Combinations that cannot work are refused with the
-       reason. It writes ``app/app.yaml``, a starter ``controller.py`` or
-       ``mission.py``, and run configurations
+     - The stack picker: simulator × robot × autopilot link × ROS 2 ×
+       controller language (Python or C++), with four quick picks.
+       Combinations that cannot work are refused with the reason. It writes
+       ``app/app.yaml``, a starter ``controller.py`` or ``controller.cpp`` (with
+       a ``.clangd`` for VS Code), ``mission.py`` for a MAVLink vehicle, and
+       run configurations
    * - **Stack**
      - The app's parts, each controller's rate, each link's signals, and who
        publishes every signal (from ``roboforge info --json``)

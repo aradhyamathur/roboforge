@@ -23,7 +23,7 @@ roboforge-sdk = "roboforge.cli:main"
 include = ["roboforge*"]
 
 [tool.setuptools.package-data]
-roboforge = ["zoo/*.xml", "zoo/*.yaml"]
+roboforge = ["zoo/*.xml", "zoo/*.yaml", "cpp/include/roboforge/*.hpp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

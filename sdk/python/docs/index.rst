@@ -52,6 +52,7 @@ explained in :doc:`debugging/errors`.
    guides/ros2
    guides/mavlink
    guides/rendering
+   guides/cpp
    guides/extending
    guides/ide
 

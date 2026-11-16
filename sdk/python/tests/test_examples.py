@@ -99,6 +99,7 @@ SCRIPTS = {   # script -> text its output must contain
     "custom_solver/compare.py": "agree",
     "custom_slam/evaluate.py": "map: 8 of 8 landmarks found",
     "sb3_ppo.py": "deployed through rf.Policy",
+    "cpp_controller/compare.py": "-> identical",
 }
 
 

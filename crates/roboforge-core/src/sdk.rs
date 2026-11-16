@@ -63,11 +63,27 @@ pub struct Stack {
     /// Path to a URDF or MJCF file, for `robot: custom`.
     #[serde(default)]
     pub model: String,
+    /// The language of the controller you write: `python` (default) or `cpp`.
+    #[serde(default)]
+    pub language: String,
 }
 
 impl Stack {
+    pub fn cpp(&self) -> bool {
+        self.language == "cpp"
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         let one_of = |what: &str, v: &str, ok: &[&str]| if ok.contains(&v) { Ok(()) } else { Err(format!("{what} must be one of: {}", ok.join(", "))) };
+        one_of("controller language", &self.language, &["", "python", "cpp"])?;
+        if self.cpp() {
+            if self.sim != "mujoco" {
+                return Err("a C++ controller needs the simulator: without one there is no controller of yours in the app".into());
+            }
+            if matches!(self.mavlink.as_str(), "vehicle" | "hil") {
+                return Err("with a MAVLink vehicle or PX4 in the loop, MAVLink decides where to fly and there is no controller of yours to write: pick Python".into());
+            }
+        }
         one_of("simulator", &self.sim, &["mujoco", "none"])?;
         one_of("MAVLink mode", &self.mavlink, &["none", "vehicle", "hil", "client"])?;
         if self.sim == "mujoco" {
@@ -180,25 +196,25 @@ pub fn scaffold(name: &str, st: &Stack) -> Result<Vec<(String, String)>, String>
                     y += "  []        # PX4 is the controller in this mode\n";
                 } else {
                     if !external {
-                        y += "  - {type: \"controller:Patrol\", rate: 0.25}     # yours: where to fly (controller.py)\n";
-                        files.push(("controller.py".into(), PATROL.into()));
+                        y += &mine(st, "Patrol", "0.25", "where to fly");
+                        files.push(code(st, PATROL, PATROL_CPP));
                     }
                     y += "  - {type: multirotor, rate: 250}                # built in: setpoint -> motor commands\n";
                 }
             }
             "arm" => {
-                y += "  - {type: \"controller:Wave\", rate: 50}            # yours: joint targets (controller.py)\n";
+                y += &mine(st, "Wave", "50", "joint targets");
                 y += "  - {type: joint_pd, rate: 500}                    # built in: joint targets -> torques\n";
-                files.push(("controller.py".into(), WAVE.into()));
+                files.push(code(st, WAVE, WAVE_CPP));
             }
             "diffdrive" => {
-                y += "  - {type: \"controller:Circle\", rate: 10}          # yours: velocity command (controller.py)\n";
+                y += &mine(st, "Circle", "10", "velocity command");
                 y += "  - {type: diffdrive}                              # built in: velocity -> wheel speeds\n";
-                files.push(("controller.py".into(), CIRCLE.into()));
+                files.push(code(st, CIRCLE, CIRCLE_CPP));
             }
             _ => {
-                y += "  - {type: \"controller:Hold\", rate: 500}           # yours: a PID loop per joint (controller.py)\n";
-                files.push(("controller.py".into(), HOLD.into()));
+                y += &mine(st, "Hold", "500", "a PID loop per joint");
+                files.push(code(st, HOLD, HOLD_CPP));
             }
         }
         y += "\ncallbacks:\n";
@@ -211,6 +227,123 @@ pub fn scaffold(name: &str, st: &Stack) -> Result<Vec<(String, String)>, String>
     }
     Ok(files)
 }
+
+/// The app.yaml line for the controller the user writes, in their language.
+fn mine(st: &Stack, class: &str, rate: &str, what: &str) -> String {
+    if st.cpp() {
+        format!("  - {{type: cpp, source: controller.cpp, rate: {rate}}}   # yours, in C++: {what} (controller.cpp, built on first run)\n")
+    } else {
+        format!("  - {{type: \"controller:{class}\", rate: {rate}}}{:pad$}# yours: {what} (controller.py)\n", "", pad = 22usize.saturating_sub(class.len() + rate.len()))
+    }
+}
+
+fn code(st: &Stack, py: &str, cpp: &str) -> (String, String) {
+    if st.cpp() { ("controller.cpp".into(), cpp.into()) } else { ("controller.py".into(), py.into()) }
+}
+
+const PATROL_CPP: &str = r#"// Where the quadrotor should go. Edit freely: this is your code.
+//
+// Runs four times a minute and returns a position setpoint; the built-in
+// multirotor controller (see app.yaml) turns setpoints into motor commands
+// 250 times a second. Built automatically when the app starts.
+#include <roboforge/controller.hpp>
+
+class Patrol : public rf::Controller {
+ public:
+  explicit Patrol(const rf::Params&) {}
+
+  rf::Action step(const rf::Obs& obs) override {
+    static const double corners[4][3] = {{0, 0, 1.5}, {2, 0, 1.5}, {2, 2, 2.0}, {0, 2, 1.5}};
+    // A little slack: t is a sum of 2 ms steps, so "4 seconds" arrives as 3.99999...
+    const auto* c = corners[static_cast<int>(obs.t() / 4.0 + 1e-6) % 4];
+    return rf::Action::setpoint(c[0], c[1], c[2], 0.0);
+  }
+};
+
+RF_EXPORT_CONTROLLER(Patrol)
+"#;
+
+const WAVE_CPP: &str = r#"// Joint targets for the arm. Edit freely: this is your code.
+//
+// Returns joint targets; the built-in joint controller (see app.yaml) turns
+// them into torques. obs.q(i) and obs.qd(i) are the joints' positions and
+// velocities. Built automatically when the app starts.
+#include <cmath>
+#include <roboforge/controller.hpp>
+
+class Wave : public rf::Controller {
+ public:
+  explicit Wave(const rf::Params& p) : amplitude_(p.number("amplitude", 0.8)) {}
+
+  rf::Action step(const rf::Obs& obs) override {
+    const double t = obs.t();
+    return rf::Action::joints({amplitude_ * std::sin(0.6 * t), 0.5 + 0.3 * std::sin(1.1 * t), -0.9});
+  }
+
+ private:
+  double amplitude_;
+};
+
+RF_EXPORT_CONTROLLER(Wave)
+"#;
+
+const CIRCLE_CPP: &str = r#"// Velocity command for the base. Edit freely: this is your code.
+//
+// Returns forward speed and turn rate; the built-in diff-drive controller
+// (see app.yaml) turns that into wheel speeds. Built automatically when the
+// app starts.
+#include <roboforge/controller.hpp>
+
+class Circle : public rf::Controller {
+ public:
+  explicit Circle(const rf::Params& p) : speed_(p.number("speed", 0.3)), turn_(p.number("turn", 0.4)) {}
+
+  rf::Action step(const rf::Obs&) override { return rf::Action::velocity(speed_, turn_); }
+
+ private:
+  double speed_, turn_;
+};
+
+RF_EXPORT_CONTROLLER(Circle)
+"#;
+
+const HOLD_CPP: &str = r#"// A PID loop per joint for your own robot. Edit freely: this is your code.
+//
+// Holds every joint at the angle it starts at, within each motor's limits.
+// Built automatically when the app starts.
+#include <roboforge/controller.hpp>
+
+class Hold : public rf::Controller {
+ public:
+  explicit Hold(const rf::Params& p) : kp_(p.number("kp", 40.0)), ki_(p.number("ki", 10.0)), kd_(p.number("kd", 4.0)) {}
+
+  void setup(const rf::Info& info) override {
+    dt_ = info.dt;
+    low_ = info.ctrl_low;
+    high_ = info.ctrl_high;
+    if (info.actuator_names.size() != info.joint_names.size())
+      throw std::invalid_argument("Hold needs one motor per joint");
+  }
+
+  rf::Action step(const rf::Obs& obs) override {
+    if (target_.empty()) {
+      target_ = obs.q();
+      pid_.assign(obs.joints(), rf::PID(kp_, ki_, kd_, 2.0));
+    }
+    rf::Vec u(obs.joints());
+    for (int i = 0; i < obs.joints(); ++i)
+      u[i] = rf::clamp(pid_[i](target_[i] - obs.q(i), dt_, -obs.qd(i)), low_[i], high_[i]);
+    return rf::Action::actuators(u);
+  }
+
+ private:
+  double kp_, ki_, kd_, dt_ = 0.002;
+  rf::Vec low_, high_, target_;
+  std::vector<rf::PID> pid_;
+};
+
+RF_EXPORT_CONTROLLER(Hold)
+"#;
 
 const PATROL: &str = r#""""Where the quadrotor should go. Edit freely: this is your code.
 
@@ -226,7 +359,8 @@ CORNERS = [(0, 0, 1.5), (2, 0, 1.5), (2, 2, 2.0), (0, 2, 1.5)]
 
 class Patrol(rf.Controller):
     def step(self, obs, t):
-        x, y, z = CORNERS[int(t / 4.0) % len(CORNERS)]
+        # A little slack: t is a sum of 2 ms steps, so "4 seconds" arrives as 3.99999...
+        x, y, z = CORNERS[int(t / 4.0 + 1e-6) % len(CORNERS)]
         return rf.Setpoint(position=np.array([x, y, z], float), yaw=0.0)
 "#;
 
@@ -336,6 +470,9 @@ pub fn run_configs(st: &Stack) -> Vec<(String, String)> {
     ];
     if st.mavlink == "vehicle" {
         v.push(("Mission: fly a square (MAVLink)".to_string(), "python3 mission.py".to_string()));
+    }
+    if st.cpp() {
+        v.push(("C++: build controller".to_string(), "python3 -m roboforge cpp build controller.cpp".to_string()));
     }
     v
 }

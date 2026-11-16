@@ -62,10 +62,14 @@ GOOD = [  # name, sim, robot, mavlink, ros
     ("base_plain", M, "diffdrive", "none", False), ("base_ros", M, "diffdrive", "none", True),
     ("urdf_plain", M, "custom", "none", False), ("urdf_ros", M, "custom", "none", True),
     ("bridge", "none", "", "client", True), ("mav_client", "none", "", "client", False), ("ros_only", "none", "", "none", True),
+    # The controller you write in C++ (built by the SDK on first run).
+    ("quad_cpp", M, "quadrotor", "none", False, "cpp"), ("arm_cpp_ros", M, "arm", "none", True, "cpp"),
+    ("base_cpp", M, "diffdrive", "none", False, "cpp"), ("urdf_cpp", M, "custom", "none", False, "cpp"),
 ]
 BAD = [("arm + MAVLink vehicle", M, "arm", "vehicle", False, ""), ("simulator + MAVLink client", M, "quadrotor", "client", False, ""),
        ("nothing to get state from", "none", "", "none", False, ""), ("vehicle without simulator", "none", "", "vehicle", True, ""),
-       ("custom robot without a model", M, "custom", "none", False, "")]
+       ("custom robot without a model", M, "custom", "none", False, ""),
+       ("C++ with a MAVLink vehicle", M, "quadrotor", "vehicle", False, "", "cpp"), ("C++ without a simulator", "none", "", "none", True, "", "cpp")]
 
 fails, first = [], True
 
@@ -77,16 +81,18 @@ def check(name, ok, detail=""):
 
 
 print("refused combinations")
-for label, sim, robot, mav, ros, model in BAD:
+for label, sim, robot, mav, ros, model, *lang in BAD:
     d = os.path.join(OUT, "bad_" + re.sub(r"\W+", "_", label))
-    r = api("/api/project/new", dir=d, name="bad", ros="ros2-jazzy" if ros else "", modules=[], sdk={"sim": sim, "robot": robot, "mavlink": mav, "ros": ros, "model": model})
+    r = api("/api/project/new", dir=d, name="bad", ros="ros2-jazzy" if ros else "", modules=[],
+            sdk={"sim": sim, "robot": robot, "mavlink": mav, "ros": ros, "model": model, "language": (lang or ["python"])[0]})
     check(f"{label}: {r.get('error', 'ACCEPTED')}", "error" in r and not os.path.exists(os.path.join(d, "roboforge.json")))
 
-for name, sim, robot, mav, ros in GOOD:
-    print(f"{name}: sim={sim} robot={robot or '-'} mavlink={mav} ros={ros}")
+for name, sim, robot, mav, ros, *lang in GOOD:
+    lang = (lang or ["python"])[0]
+    print(f"{name}: sim={sim} robot={robot or '-'} mavlink={mav} ros={ros} language={lang}")
     d = os.path.join(OUT, name)
     r = api("/api/project/new", dir=d, name=name, ros="ros2-jazzy" if ros else "", modules=[],
-            sdk={"sim": sim, "robot": robot, "mavlink": mav, "ros": ros, "model": urdf if robot == "custom" else ""})
+            sdk={"sim": sim, "robot": robot, "mavlink": mav, "ros": ros, "model": urdf if robot == "custom" else "", "language": lang})
     check("project created", "error" not in r and os.path.isfile(os.path.join(d, "app", "app.yaml")), r.get("error", ""))
     if "error" in r:
         continue
@@ -106,6 +112,10 @@ for name, sim, robot, mav, ros in GOOD:
     links = [l["type"] + (":" + l["mode"] if l.get("mode") else "") for l in s.get("links", [])]
     errs = [l["error"] for l in s.get("links", []) if l.get("error")]
     check(f"Stack view: links {links or '-'}, {len(s.get('signals', []))} signals", "error" not in s and not errs, s.get("error", "") + " ".join(errs))
+    if lang == "cpp":
+        check("controller.cpp and .clangd written", os.path.isfile(os.path.join(d, "app", "controller.cpp")) and os.path.isfile(os.path.join(d, "app", ".clangd")))
+        code, out = run(d, "python3 -m roboforge cpp build controller.cpp", timeout=120)
+        check("C++: build controller", code == 0 and ".so" in out, out)
     names = [c["name"] for c in proj.get("run", [])]
     check(f"run configurations: {names}", "App: run" in names and (mav != "vehicle" or any("Mission" in n for n in names)))
     if mav == "hil":

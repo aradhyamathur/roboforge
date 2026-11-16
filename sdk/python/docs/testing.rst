@@ -97,6 +97,17 @@ the New Project picker accepts, through the IDE's own API on an empty
 RoboForge home, sets up the environment, reads the Stack view and runs each
 one; the 5 combinations it refuses are checked too.
 
+C++
+---
+
+``tests/test_cpp.py`` builds controllers from source and with CMake, checks
+every action kind, parameters, inputs, rebuilding on change, several
+instances, ``rf.Async``, and each failure (compile errors, a missing export,
+parameter typos and types, exceptions in the constructor and in ``step``,
+wrong-sized and ``nan`` commands). The example controller matches the Python
+``joint_pd`` bit for bit, and a battle scenario makes 150 000 calls and 200
+load/unload cycles without leaking. Tried with GCC 13 only.
+
 Not tested
 ----------
 

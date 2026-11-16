@@ -174,6 +174,35 @@ Each of these carries ``(in controller X at t=...)``.
    ``obs["X"]`` before anything published it. Use ``obs.get("X")`` and
    handle ``None``.
 
+C++ controllers
+---------------
+
+``X.cpp did not compile:`` (then the compiler's own errors and the command)
+
+``C++ controller X does not read parameter 'kpp'. Did you mean 'kp'? It reads: ...``
+   Every key in the controller's line must be read by its constructor.
+
+``C++ controller X could not be created: parameter 'kp' must be one number``
+   Also ``... must be numbers, got text``, ``... must be text``, ``... is
+   required``, or any exception the constructor throws.
+
+``C++ controller X threw: ...`` / ``... failed in setup(): ...``
+   An exception from ``step`` or ``setup``, with its message.
+
+``X is not a RoboForge controller (no rf_create, ...)``
+   ``RF_EXPORT_CONTROLLER(YourClass)`` is missing.
+
+``X was built against controller.hpp version N; this SDK speaks version M. Rebuild it.``
+
+``a cpp controller needs either `source:` (a .cpp file, built for you) or `library:` (a .so you built)``
+
+``C++ source not found`` / ``C++ controller library not found``
+   Paths are relative to ``app.yaml``.
+
+``no C++ compiler found (tried $CXX, g++, clang++, c++)``
+
+``C++ controller X: a velocity action has 6 values`` / ``a setpoint action has 4 values``
+
 Policies and training
 ---------------------
 

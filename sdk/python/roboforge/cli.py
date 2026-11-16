@@ -5,6 +5,7 @@
     doctor [--json]               which optional parts work in this environment
     zoo                           bundled robot models
     data export DIR --format nerfstudio|tum --out OUT [--camera NAME]
+    cpp include | build SOURCE [--out DIR] | new NAME     C++ controllers
 """
 from __future__ import annotations
 
@@ -102,6 +103,14 @@ def _main(argv=None) -> int:
     ex.add_argument("--out", required=True)
     ex.add_argument("--camera")
     # Overrides may come before or after the options (`run app.yaml --headless physics.substeps=2`).
+    cp = sub.add_parser("cpp", help="C++ controllers: header location, build, new")
+    csub = cp.add_subparsers(dest="cpp_cmd", required=True)
+    csub.add_parser("include", help="print the folder to add to the include path (-I)")
+    cb = csub.add_parser("build", help="compile a controller into a shared library")
+    cb.add_argument("source")
+    cb.add_argument("--out", help="folder for the library (default: build/ next to the source)")
+    cn = csub.add_parser("new", help="write a starting controller NAME.cpp")
+    cn.add_argument("name")
     a, extra = ap.parse_known_args(argv)
     if extra:
         if a.cmd in ("run", "info") and not any(x.startswith("-") for x in extra):
@@ -122,6 +131,16 @@ def _main(argv=None) -> int:
         from .robot import Robot
         for name, spec in Robot.zoo_names().items():
             print(f"  {name:12s} {spec['profile']:12s} {spec.get('summary', '')}")
+        return 0
+    if a.cmd == "cpp":
+        from . import cpp
+        if a.cpp_cmd == "include":
+            print(cpp.include_dir())
+        elif a.cpp_cmd == "build":
+            print(cpp.build(a.source, out_dir=a.out))
+        else:
+            path = cpp.new(a.name)
+            print(f"wrote {path}\nuse it in app.yaml:  - {{type: cpp, source: {path.name}, rate: 500}}")
         return 0
     if a.cmd == "data":
         from .data import Dataset
