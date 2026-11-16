@@ -123,6 +123,7 @@ footer.shut .term { display: none; }
 #vscwrap.on { display: block; } #vscwrap iframe { width: 100%; height: 100%; border: 0; display: block; }
 header { grid-row: 1; grid-column: 1; } main { grid-row: 2; grid-column: 1; } footer { grid-row: 3; grid-column: 1; }
 #vscbtn.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+header { overflow-x: auto; } header > button, header > select { flex: none; white-space: nowrap; } #runsel { max-width: 210px; }
 </style>
 </head>
 <body>
@@ -206,6 +207,7 @@ function renderHeader() {
       sel, h('button', { class: 'primary', id: 'runbtn', disabled: !p.project.run.length && !lcs.length, onclick: guard(() => { const v = $('runsel').value; return v.startsWith('launch:') ? runLaunch(v.slice(7)) : runConfig(v); }) }, '▶ Run'),
       h('button', { id: 'envbtn', onclick: guard(envDialog), title: 'ROS setup script, extra scripts to source, PATH, PYTHONPATH, build Python, variables' }, 'Environment'),
       h('button', { id: 'wsbtn', onclick: guard(workspacesDialog), title: 'Workspaces: separate folders for ROS, MAVSDK apps, sims, ML; reuse existing ones' }, 'Workspaces ', h('span', { class: 'badge' }, p.workspaces.length)),
+      p.project.workspaces.some((w) => w.kind === 'app') ? h('button', { id: 'stackbtn', onclick: guard(stackDialog), title: 'What this SDK app is made of: robot, physics, links and the signals between them' }, 'Stack') : null,
       h('button', { id: 'vscbtn', class: S.vscOn ? 'on' : '', onclick: guard(toggleVscode), title: S.vscOn ? 'Back to the built-in editor (VS Code keeps running)' : 'Edit this project in VS Code, embedded here: extensions, IntelliSense, chat and agent extensions' }, S.vscOn ? '◧ Built-in editor' : '◧ VS Code'),
       h('button', { id: 'toolsbtn', onclick: guard(toolsDialog), title: 'Launch worlds, SLAM, navigation, teleop and viewers detected in this project' }, '🚀 Launch'),
       h('button', { id: 'modbtn', onclick: guard(modulesDialog), title: 'Mix modules into this project or take them out' }, 'Modules ', h('span', { class: 'badge' }, p.project.modules.length)),
@@ -214,7 +216,7 @@ function renderHeader() {
   } else kids.push(h('span', { class: 'grow' }));
   kids.push(h('button', { onclick: guard(sdkManager) }, 'SDK Manager'), h('button', { onclick: guard(newProject) }, 'New'), h('button', { onclick: guard(openDialog) }, 'Open'));
   kids.push(docsBtn);
-  $('hdr').replaceChildren(...kids);
+  $('hdr').replaceChildren(...kids.filter(Boolean));
 }
 
 /* ---------- main: welcome / workspace ---------- */
@@ -953,6 +955,36 @@ async function openDialog() {
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(input.value); });
   const close = modal('Open project', body, [h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', onclick: () => go(input.value) }, 'Open')]);
 }
+/* Stack view: what an SDK app is made of and which signals flow where (from `roboforge info`). */
+async function sdkSetup() { const j = addJob(await api('sdk/setup', { dir: dir() })); j.refresh = true; toast('Setting up the SDK Python environment. Watch the "SDK environment" tab; then open Stack again.', true); }
+async function stackDialog() {
+  const wsIndex = S.proj.project.workspaces.findIndex((w) => w.kind === 'app');
+  const setupBtn = h('button', { id: 'stack-setup', title: 'Creates ~/.roboforge/envs/sdk-venv: the system Python plus mujoco, pymavlink and gymnasium, and points this project at it', onclick: guard(async () => { close(); await sdkSetup(); }) }, 'Set up SDK environment');
+  let close = () => {};
+  let info;
+  try { info = await api('project/stack', { dir: dir(), ...(wsIndex >= 0 ? { ws: wsIndex } : {}) }); }
+  catch (e) {
+    close = modal('Stack', [h('p', { class: 'status bad', style: 'white-space:pre-wrap' }, e.message),
+      h('p', { class: 'mute' }, 'The app could not be loaded in this project\'s environment. Most often a Python package is missing (mujoco, pymavlink) or the app.yaml has an error. "Set up SDK environment" installs the packages without touching your system Python.')],
+      [setupBtn, h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Close')]);
+    return;
+  }
+  const sig = (list) => list.length ? list.map((x) => h('span', { class: 'badge', style: 'margin:0 4px 2px 0' }, x)) : h('span', { class: 'mute' }, 'none');
+  const row = (k, v) => h('div', { class: 'field', style: 'grid-template-columns:150px 1fr;align-items:start' }, h('span', { class: 'mute' }, k), h('div', {}, v));
+  const rb = info.robot, ph = info.physics;
+  const body = [
+    row('Robot', rb ? [h('strong', {}, rb.name), ' ', h('span', { class: 'badge' }, rb.profile), h('small', { class: 'mono mute', style: 'display:block' }, rb.model)] : 'none (state comes from the links)'),
+    row('Physics', [h('strong', {}, ph.type), ' ', h('span', { class: 'mute' }, 'step ' + (ph.dt * 1000).toFixed(1) + ' ms' + (ph.actuators ? ', ' + ph.actuators.length + ' actuators, ' + ph.joints.length + ' joints' : ''))]),
+    row('Renderer', info.renderer ? [h('strong', {}, info.renderer.type), ' ', h('span', { class: 'mute' }, 'cameras: ' + ((info.renderer.cameras || []).join(', ') || 'none') + ' at ' + info.renderer.fps + ' fps')] : 'none'),
+    row('Controllers', info.controllers.length ? info.controllers.map((c) => h('div', { 'data-ctrl': c.type }, h('strong', {}, c.type), ' ', h('span', { class: 'mute' }, c.rate ? c.rate + ' Hz' : 'every step'))) : 'none'),
+    row('Links', info.links.length ? info.links.map((l) => h('div', { 'data-link': l.type, style: 'margin-bottom:8px' }, h('strong', {}, l.type), l.mode ? [' ', h('span', { class: 'badge' }, l.mode)] : null,
+      l.error ? h('div', { class: 'status bad' }, l.error) : [h('div', {}, h('small', { class: 'mute' }, 'takes from the bus  '), sig(l.inputs)), h('div', {}, h('small', { class: 'mute' }, 'puts on the bus  '), sig(l.outputs))])) : 'none'),
+    h('h3', {}, 'Signals on the bus'),
+    h('div', { id: 'stack-signals' }, info.signals.map((x) => h('div', { class: 'row', style: 'padding:3px 0' }, h('span', { class: 'mono', style: 'width:220px' }, x.name), h('span', { class: 'mute', style: 'width:150px' }, x.type), h('span', { class: 'grow mute' }, 'from ' + (x.sources.join(', ') || '?'))))),
+    h('p', { class: 'hint' }, 'Read from app.yaml by running the app for a moment with its links switched off. Edit app.yaml or controller.py and open this again to see the change.')];
+  close = modal('Stack: ' + info.name, body, [setupBtn, h('span', { class: 'grow' }), h('button', { onclick: () => close() }, 'Close'),
+    h('button', { class: 'primary', onclick: guard(async () => { close(); await runConfig('App: run'); }), disabled: !S.proj.project.run.some((r) => r.name === 'App: run') }, '▶ Run app')]);
+}
 /* Import: inspect a folder, show what will be created, then create the project next to the others. */
 async function importDialog(source) {
   const pv = await api('project/import', { source, preview: true });
@@ -980,7 +1012,7 @@ async function importDialog(source) {
       toast('Imported ' + p.project.name + '.' + ((rep.launch || []).length ? '\nLaunch configurations: ' + rep.launch.map((c) => c.name).join(', ') + '.' : '') + ((rep.notes || []).length ? '\n' + rep.notes.join('\n') : ''), true);
     }) }, 'Import')]);
 }
-const CAT_LABELS = { ros: 'ROS distro (one per project)', autopilot: 'Autopilot and vehicle SDKs', simulator: 'Simulators', manipulation: 'Manipulation', navigation: 'Navigation', ml: 'ML and 3D vision', slam: 'SLAM',
+const CAT_LABELS = { framework: 'Framework', ros: 'ROS distro (one per project)', autopilot: 'Autopilot and vehicle SDKs', simulator: 'Simulators', manipulation: 'Manipulation', navigation: 'Navigation', ml: 'ML and 3D vision', slam: 'SLAM',
   simulation: 'Simulation', aerial: 'Aerial', learning: 'Learning and 3D vision', integration: 'Integration', drivers: 'Drivers' };
 const groupBy = (items) => { const m = new Map(); for (const it of items) { if (!m.has(it.category)) m.set(it.category, []); m.get(it.category).push(it); } return [...m.entries()]; };
 function picker(items, selected, onChange, badges) {
@@ -1042,20 +1074,71 @@ async function newProject() {
   };
   name.addEventListener('input', setLoc);
   loc.addEventListener('input', () => { touchedDir = true; });
-  ros.addEventListener('change', check);
   setLoc(); apply();
+  /* Stack picker: a project built on the RoboForge SDK (simulator x middleware x autopilot link x robot). */
+  const sk = {
+    on: h('input', { type: 'checkbox', id: 'sk-on' }),
+    sim: h('select', { id: 'sk-sim', 'aria-label': 'Simulator' }, h('option', { value: 'mujoco' }, 'MuJoCo'), h('option', { value: 'none' }, 'None (real robot or external simulator)')),
+    robot: h('select', { id: 'sk-robot', 'aria-label': 'Robot' }, h('option', { value: 'quadrotor' }, 'Quadrotor'), h('option', { value: 'arm' }, 'Robot arm'), h('option', { value: 'diffdrive' }, 'Wheeled base (diff-drive)'), h('option', { value: 'custom' }, 'My own URDF / MJCF (arms, humanoids, anything)')),
+    model: h('input', { type: 'text', id: 'sk-model', class: 'mono', placeholder: '~/robots/humanoid.urdf  or  model.xml', style: 'display:none' }),
+    mav: h('select', { id: 'sk-mav', 'aria-label': 'Autopilot link' }, h('option', { value: 'none' }, 'None'), h('option', { value: 'vehicle' }, 'MAVLink vehicle (QGroundControl / MAVSDK connect, no PX4 needed)'),
+      h('option', { value: 'hil' }, 'PX4 in the loop (needs a PX4 SITL build)'), h('option', { value: 'client' }, 'MAVLink client (talk to an existing autopilot)')),
+    lang: h('select', { id: 'sk-lang', 'aria-label': 'Controller language' }, h('option', { value: 'python' }, 'Python'), h('option', { value: 'cpp' }, 'C++ (built for you on first run)')),
+    note: h('div', { class: 'status', id: 'sk-note', role: 'status' }),
+  };
+  const stack = () => ({ sim: sk.sim.value, ros: !!ros.value && !ros.value.startsWith('ros1'), mavlink: sk.mav.value, robot: sk.sim.value === 'mujoco' ? sk.robot.value : '', model: sk.model.value.trim(), language: sk.lang.value });
+  const stackProblem = (st) => {
+    if (ros.value.startsWith('ros1')) return 'The SDK works with ROS 2, not ROS 1.';
+    if (st.sim === 'mujoco') {
+      if (st.robot === 'custom' && !st.model) return 'Give the path to your URDF or MJCF file.';
+      if ((st.mavlink === 'vehicle' || st.mavlink === 'hil') && st.robot !== 'quadrotor') return 'MAVLink vehicle and PX4-in-the-loop fly a multirotor: pick the quadrotor.';
+      if (st.mavlink === 'client') return 'A MAVLink client talks to an existing autopilot: pick "None" as the simulator.';
+      if (st.language === 'cpp' && (st.mavlink === 'vehicle' || st.mavlink === 'hil')) return 'With a MAVLink vehicle or PX4 in the loop there is no controller of yours to write: pick Python.';
+    } else {
+      if (st.language === 'cpp') return 'A C++ controller needs the simulator.';
+      if (st.mavlink === 'vehicle' || st.mavlink === 'hil') return 'MAVLink vehicle and PX4-in-the-loop need the MuJoCo simulator.';
+      if (st.mavlink !== 'client' && !st.ros) return 'Without a simulator, pick a MAVLink client and/or ROS 2 to get state from.';
+    }
+    return '';
+  };
+  const stackSync = () => {
+    const st = stack(), bad = sk.on.checked ? stackProblem(st) : '';
+    sk.robot.disabled = st.sim !== 'mujoco';
+    sk.model.style.display = st.sim === 'mujoco' && sk.robot.value === 'custom' ? '' : 'none';
+    for (const el of [sk.sim, sk.robot, sk.model, sk.mav, sk.lang]) el.closest('.field').style.opacity = sk.on.checked ? '' : '.45';
+    const parts = [st.sim === 'mujoco' ? 'MuJoCo' : null, st.ros ? 'ROS 2' : null, st.mavlink !== 'none' ? 'MAVLink' : null].filter(Boolean).join(' + ');
+    sk.note.className = 'status ' + (bad ? 'bad' : 'mute');
+    sk.note.textContent = !sk.on.checked ? 'Off: the project is made from the presets and modules below only.'
+      : bad || 'Creates app/app.yaml (' + parts + ')' + (st.sim === 'mujoco' && st.mavlink !== 'hil' && st.mavlink !== 'vehicle' ? (st.language === 'cpp' ? ', app/controller.cpp with a starter controller in C++' : ', app/controller.py with a starter controller') : '') + (st.mavlink === 'vehicle' ? ', app/mission.py that flies it over MAVLink' : '') + ', and run + launch configurations.';
+    return bad;
+  };
+  const combo = (label, sim, rosOn, mav, robot) => h('button', { class: 'quiet', 'data-combo': label, onclick: () => {
+    sk.on.checked = true; sk.sim.value = sim; sk.mav.value = mav; if (robot) sk.robot.value = robot;
+    if (rosOn && (!ros.value || ros.value.startsWith('ros1'))) ros.value = 'ros2-jazzy'; if (!rosOn) ros.value = '';
+    stackSync(); check(); } }, label);
+  for (const el of [sk.on, sk.sim, sk.robot, sk.model, sk.mav, sk.lang]) el.addEventListener('input', stackSync);
+  ros.addEventListener('change', () => { check(); stackSync(); });
   const create = guard(async () => {
-    const p = await api('project/new', { dir: loc.value, name: name.value, ...body() });
+    const bad = stackSync();
+    if (bad) { toast(bad); return; }
+    const p = await api('project/new', { dir: loc.value, name: name.value, ...body(), ...(sk.on.checked ? { sdk: stack() } : {}) });
     close(); S.boot = await api('boot'); await openProject(p.dir);
+    if (sk.on.checked) await stackDialog().catch(() => {});
   });
   const close = modal('New project', [
     h('label', { class: 'field' }, 'Name', name), h('label', { class: 'field' }, 'Location', loc), h('label', { class: 'field' }, 'ROS', ros),
     h('div', { class: 'field' }, 'ROS workspace', h('div', {}, wsMode, ' ', wsPath)),
+    h('h3', {}, h('label', { style: 'cursor:pointer' }, sk.on, ' Build on the RoboForge SDK: one app, any combination')),
+    h('p', { class: 'hint' }, 'A small Python framework where the simulator, ROS 2 and MAVLink are interchangeable parts wired through one bus. You get a config file, a starter controller you edit, and everything ready to run. Quick picks: ',
+      combo('MuJoCo + ROS 2', 'mujoco', true, 'none', 'arm'), combo('MuJoCo + MAVLink', 'mujoco', false, 'vehicle', 'quadrotor'), combo('ROS 2 + MAVLink', 'none', true, 'client', ''), combo('All three', 'mujoco', true, 'vehicle', 'quadrotor')),
+    h('label', { class: 'field' }, 'Simulator', sk.sim), h('label', { class: 'field' }, 'Robot', h('div', {}, sk.robot, ' ', sk.model)), h('label', { class: 'field' }, 'Autopilot link', sk.mav), h('label', { class: 'field' }, 'Your controller in', sk.lang),
+    h('div', { class: 'field' }, 'Middleware', h('span', { class: 'mute' }, 'ROS 2 is on when a ROS 2 distro is selected above.')), sk.note,
     h('p', { class: 'mute' }, 'Other kinds of work get their own folders automatically: mav_ws/ for standalone MAVSDK and PX4 apps, sim/ for simulator assets, ml/ for training code, isaac/ for Isaac Sim. Change them later under Workspaces.'),
     h('h3', {}, 'Start from'), cards,
     h('h3', {}, 'Modules: mix any of these. Each brings its SDKs, files and run configurations, and more can be added later.'), modPick.el,
     h('details', {}, h('summary', {}, 'Extra SDK components (a specific PX4 or PyTorch build, source checkouts)'), extraPick.el)],
     [h('div', { class: 'grow' }, status), h('button', { onclick: () => close() }, 'Cancel'), h('button', { class: 'primary', id: 'np-create', onclick: create }, 'Create project')]);
+  stackSync();
 }
 async function modulesDialog() {
   const p = S.proj.project;

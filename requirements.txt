@@ -1,0 +1,25 @@
+# Python dependencies of the RoboForge SDK (sdk/python), pinned to the versions it is tested with.
+#
+#   pip install -r requirements.txt            # then: pip install -e sdk/python
+#   pip install -r requirements-ml.txt         # optional: PyTorch and stable-baselines3
+#
+# ROS 2 is not here: rclpy comes from a ROS 2 installation (source /opt/ros/<distro>/setup.bash),
+# so make the environment from the system Python with system site packages, for example
+#   uv venv --python /usr/bin/python3 --system-site-packages .venv
+
+# The SDK's core
+numpy==2.5.4
+pyyaml==6.0.3
+
+# Physics and rendering (MuJoCo), MAVLink, training environments
+mujoco==4.0.1
+pymavlink==2.4.50
+gymnasium==1.4.0
+
+# Tests
+pytest==9.2.0
+
+# Documentation (sdk/python/docs, Read the Docs)
+sphinx==9.1.1
+sphinx-rtd-theme==3.1.0
+sphinx-copybutton==0.5.2

@@ -1,0 +1,15 @@
+# A renderer of your own (splat.py) in place of MuJoCo's: one line changes.
+# Run it:      python3 -m roboforge run app.yaml --headless --duration 3 --tap
+# Compare it:  python3 compare.py         (writes both renderers' frames side by side)
+roboforge: 1
+name: custom_renderer
+
+robot: arm
+physics: {type: mujoco}
+renderer: {type: "splat:SplatRenderer", width: 320, height: 240, fps: 10}
+
+controllers:
+  - {type: joint_pd, rate: 500, target: [0.6, 0.5, -0.9]}
+
+callbacks:
+  - {type: recorder, dir: runs/splat}       # frames from any renderer record and export the same way

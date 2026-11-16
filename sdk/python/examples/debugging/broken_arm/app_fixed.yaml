@@ -1,0 +1,12 @@
+# The broken app with its five mistakes fixed, in the order RoboForge reports them
+# (see app.yaml and the "Debug a broken app" tutorial).
+roboforge: 1
+name: fixed_arm
+
+robot: arm
+physics: {type: mujoco}
+renderer: {type: mujoco, cameras: [overview], width: 160, height: 120, fps: 5}     # 3. the camera is called overview
+
+controllers:                                                # 1. controllers, not controlers
+  - {type: "controller:Reach", rate: 20, degrees: false}    # 2. rate, not rte      5. targets in radians
+  - {type: joint_pd, rate: 500}                             # 4. joint targets need a low-level controller to become torques

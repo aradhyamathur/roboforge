@@ -1,0 +1,21 @@
+# Your own robot from a URDF.
+# Run it:      python3 -m roboforge run app.yaml --headless --duration 6 --tap
+# Inspect it:  python3 -m roboforge info app.yaml
+#
+# A URDF has links and joints but no motors and no ground. RoboForge adds a
+# torque motor per joint (limited to the URDF's <limit effort=...>) and a
+# ground plane, so the built-in joint controller can drive it straight away.
+roboforge: 1
+name: custom_urdf
+
+robot:
+  urdf: twolink.urdf           # a path next to this file; mjcf: works the same way
+  profile: arm                 # multirotor, arm, diffdrive or articulated (anything with joints)
+  # floating_base: true        # for a humanoid or a legged robot: let the base move freely...
+  # position: [0, 0, 1.0]      # ...and start it above the ground
+
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Swing", rate: 50}           # yours: joint targets (controller.py)
+  - {type: joint_pd, rate: 500, kp: 40, ki: 10, kd: 4}

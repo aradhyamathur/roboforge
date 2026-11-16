@@ -1,0 +1,15 @@
+# A controller written in C++ (arm_pid.cpp) under one written in Python (controller.py).
+# Run it:      python3 -m roboforge run app.yaml --headless --duration 5 --tap
+# Compare it:  python3 compare.py          (against the built-in Python joint_pd)
+#
+# `source:` is compiled the first time the app runs, and again when it changes.
+roboforge: 1
+name: cpp_controller
+
+robot: arm
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Wave", rate: 50}                       # Python: where the joints should be
+  - {type: cpp, source: arm_pid.cpp, rate: 500,               # C++: how to get them there
+     inputs: [cmd/joint], kp: 60, ki: 20, kd: 6}

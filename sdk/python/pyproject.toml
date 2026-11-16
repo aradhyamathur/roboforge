@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roboforge"
+version = "0.1.0"
+description = "One small API for robot stacks: simulators, renderers, ROS 2, MAVLink, controllers from PID to learned policies."
+requires-python = ">=3.10"
+dependencies = ["numpy", "pyyaml"]
+
+[project.optional-dependencies]
+mujoco = ["mujoco>=3.1"]
+mavlink = ["pymavlink"]
+gym = ["gymnasium"]
+all = ["mujoco>=3.1", "pymavlink", "gymnasium"]
+dev = ["pytest"]
+
+[project.scripts]
+roboforge-sdk = "roboforge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["roboforge*"]
+
+[tool.setuptools.package-data]
+roboforge = ["zoo/*.xml", "zoo/*.yaml", "cpp/include/roboforge/*.hpp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,9 @@
+# Optional: PyTorch and stable-baselines3, for examples/sb3_ppo.py and PyTorch policies.
+# Not needed by anything else in the SDK.
+#
+# The CPU build of PyTorch is enough and is much smaller than the default CUDA one:
+#   uv pip install --torch-backend cpu -r requirements-ml.txt
+#   pip install -r requirements-ml.txt --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+# For a GPU, leave out those options (or use --torch-backend auto / cu1xx).
+torch==2.15.0
+stable-baselines3==2.9.2

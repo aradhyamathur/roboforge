@@ -1,0 +1,43 @@
+<mujoco model="quadrotor">
+  <!-- X-layout quadrotor. Each rotor is a motor on a site: thrust along body z
+       (up to 6.5 N at ctrl=1) plus a reaction torque about z whose sign follows
+       the rotor's spin direction. Hover is at ctrl ~ 0.377. -->
+  <compiler angle="degree"/>
+  <option timestep="0.002" integrator="RK4"/>
+  <visual><global offwidth="640" offheight="480"/></visual>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.82 0.80 0.75" rgb2="0.70 0.68 0.63" width="256" height="256"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance="0.05"/>
+  </asset>
+  <worldbody>
+    <light pos="0 0 6" dir="0 0 -1" diffuse="0.9 0.9 0.9"/>
+    <geom name="floor" type="plane" size="20 20 0.1" material="grid"/>
+    <geom name="marker_a" type="box" pos="4 0 0.5" size="0.3 0.3 0.5" rgba="0.76 0.31 0.04 1"/>
+    <geom name="marker_b" type="box" pos="2 3 0.3" size="0.3 0.3 0.3" rgba="0.12 0.37 0.66 1"/>
+    <geom name="marker_c" type="cylinder" pos="-2 -3 0.6" size="0.25 0.6" rgba="0.18 0.49 0.23 1"/>
+    <body name="base" pos="0 0 0.056">
+      <freejoint name="root"/>
+      <inertial pos="0 0 0" mass="1.0" diaginertia="0.0082 0.0082 0.0149"/>
+      <geom name="hull" type="box" size="0.07 0.07 0.025" rgba="0.14 0.14 0.13 1"/>
+      <geom name="arm1" type="capsule" fromto="0.13 0.13 0 -0.13 -0.13 0" size="0.008" rgba="0.3 0.3 0.3 1"/>
+      <geom name="arm2" type="capsule" fromto="0.13 -0.13 0 -0.13 0.13 0" size="0.008" rgba="0.3 0.3 0.3 1"/>
+      <geom name="skid" type="box" pos="0 0 -0.05" size="0.09 0.09 0.005" rgba="0.3 0.3 0.3 1"/>
+      <site name="imu" pos="0 0 0"/>
+      <site name="rotor_fl" pos="0.13 0.13 0.02" size="0.05 0.004" type="cylinder" rgba="0.76 0.31 0.04 0.6"/>
+      <site name="rotor_rr" pos="-0.13 -0.13 0.02" size="0.05 0.004" type="cylinder" rgba="0.76 0.31 0.04 0.6"/>
+      <site name="rotor_fr" pos="0.13 -0.13 0.02" size="0.05 0.004" type="cylinder" rgba="0.4 0.4 0.4 0.6"/>
+      <site name="rotor_rl" pos="-0.13 0.13 0.02" size="0.05 0.004" type="cylinder" rgba="0.4 0.4 0.4 0.6"/>
+      <camera name="front" pos="0.09 0 0.0" xyaxes="0 -1 0 0 0 1" fovy="70"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="motor_fl" site="rotor_fl" ctrlrange="0 1" gear="0 0 6.5 0 0 0.10"/>
+    <motor name="motor_rr" site="rotor_rr" ctrlrange="0 1" gear="0 0 6.5 0 0 0.10"/>
+    <motor name="motor_fr" site="rotor_fr" ctrlrange="0 1" gear="0 0 6.5 0 0 -0.10"/>
+    <motor name="motor_rl" site="rotor_rl" ctrlrange="0 1" gear="0 0 6.5 0 0 -0.10"/>
+  </actuator>
+  <sensor>
+    <accelerometer name="imu_accel" site="imu"/>
+    <gyro name="imu_gyro" site="imu"/>
+  </sensor>
+</mujoco>

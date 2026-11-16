@@ -1,0 +1,19 @@
+# A SLAM method of your own (slam.py), fed by sensors of your own (sensors.py).
+# Run it:      python3 -m roboforge run app.yaml --headless --duration 20 --tap 5 --no-realtime
+# Score it:    python3 evaluate.py
+roboforge: 1
+name: custom_slam
+
+robot: diffdrive
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Circle", rate: 10}
+  - {type: diffdrive}
+
+callbacks:                                   # run in this order after every physics step
+  - {type: "sensors:Sensors"}                # truth in, noisy measurements out
+  - {type: "slam:EkfSlam"}                   # measurements in, slam/pose out
+  - {type: recorder, dir: runs/slam, rate: 20, signals: [state/pose, slam/pose, odom/pose, sensor/odometry]}
+
+realtime: false

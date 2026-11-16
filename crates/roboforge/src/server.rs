@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 const INDEX: &str = include_str!("../ui/index.html");
 const DOCS: &str = include_str!("../../../docs/index.html");
+const SDK_DOCS: &str = include_str!("../../../docs/sdk.html");
 
 pub struct Ctx {
     pub home: Home,
@@ -57,8 +58,17 @@ fn handle(ctx: &Ctx, stream: TcpStream) {
         let page = INDEX.replace("__RF_TOKEN__", &ctx.token);
         return respond(&stream, 200, "text/html; charset=utf-8", page.as_bytes());
     }
-    if req.method == "GET" && (req.path == "/docs" || req.path == "/docs/") {
-        return respond(&stream, 200, "text/html; charset=utf-8", DOCS.as_bytes());
+    if req.method == "GET" && req.path.starts_with("/docs") {
+        // Relative links between the two pages resolve under /docs/.
+        let page = match req.path.as_str() {
+            "/docs" | "/docs/" | "/docs/index.html" => Some(DOCS),
+            "/docs/sdk.html" => Some(SDK_DOCS),
+            _ => None,
+        };
+        return match page {
+            Some(html) => respond(&stream, 200, "text/html; charset=utf-8", html.replacen("<head>", "<head>\n<base href=\"/docs/\">", 1).as_bytes()),
+            None => respond(&stream, 404, "text/plain", b"not found"),
+        };
     }
     if !req.path.starts_with("/api/") || req.method != "POST" {
         return respond(&stream, 404, "text/plain", b"not found");
@@ -239,6 +249,13 @@ fn code_workspace(dir: &Path, proj: &Project, env: &std::collections::HashMap<St
     let split = |k: &str| -> Vec<String> { env.get(k).map(|v| v.split(':').filter(|p| !p.is_empty()).map(String::from).collect()).unwrap_or_default() };
     let py_paths = split("PYTHONPATH");
     let mut includes: Vec<String> = Vec::new();
+    // The SDK's C++ controller header, when the SDK is on the path.
+    for p in &py_paths {
+        let inc = Path::new(p).join("roboforge/cpp/include");
+        if inc.is_dir() {
+            includes.push(inc.to_string_lossy().to_string());
+        }
+    }
     for p in split("AMENT_PREFIX_PATH").into_iter().chain(split("CMAKE_PREFIX_PATH")) {
         let inc = Path::new(&p).join("include");
         let glob = format!("{}/**", inc.display());
@@ -513,7 +530,51 @@ fn api(ctx: &Ctx, req: &Req, b: &Value) -> Result<Value, String> {
         }
         "/api/project/new" => {
             let dir = project_dir(b)?;
-            generate(home, &cat, &reg, &dir, s(b, "name")?, &selection(b)?)?;
+            // A stack from the picker: validate it before anything is written.
+            let stack: Option<roboforge_core::sdk::Stack> = match b.get("sdk").filter(|v| v.is_object()) {
+                Some(v) => {
+                    let st: roboforge_core::sdk::Stack = serde_json::from_value(v.clone()).map_err(|e| format!("invalid stack: {e}"))?;
+                    st.validate()?;
+                    Some(st)
+                }
+                None => None,
+            };
+            let mut sel = selection(b)?;
+            if let Some(st) = &stack {
+                for c in st.components() {
+                    if !sel.components.contains(&c) {
+                        sel.components.push(c);
+                    }
+                }
+            }
+            let name = s(b, "name")?;
+            generate(home, &cat, &reg, &dir, name, &sel)?;
+            if let Some(st) = &stack {
+                roboforge_core::sdk::install(home)?;
+                let mut proj = Project::load(&dir)?;
+                let app = dir.join("app");
+                std::fs::create_dir_all(&app).map_err(|e| format!("{}: {e}", app.display()))?;
+                for (rel, body) in roboforge_core::sdk::scaffold(&proj.name, st)? {
+                    std::fs::write(app.join(&rel), body).map_err(|e| format!("{rel}: {e}"))?;
+                }
+                if st.cpp() {
+                    // clangd (and so VS Code's C++ support) finds the SDK's header from this.
+                    let inc = roboforge_core::sdk::dir(home).join("roboforge/cpp/include");
+                    let clangd = format!("CompileFlags:\n  Add: [-std=c++17, -I{}]\n", inc.display());
+                    std::fs::write(app.join(".clangd"), clangd).map_err(|e| format!(".clangd: {e}"))?;
+                }
+                proj.workspaces.push(Workspace { kind: "app".into(), path: "app".into() });
+                let mut run: Vec<roboforge_core::project::RunConfig> = roboforge_core::sdk::run_configs(st).into_iter()
+                    .map(|(name, cmd)| roboforge_core::project::RunConfig { name, cmd, workspace: Some("app".into()), env: None }).collect();
+                run.append(&mut proj.run);
+                proj.run = run;
+                // Use the light SDK environment if it has been set up already.
+                let py = roboforge_core::sdk::light_python(home);
+                if py.is_file() {
+                    proj.setup.python = Some(py.to_string_lossy().to_string());
+                }
+                proj.save(&dir)?;
+            }
             remember(home, &dir);
             project_info(ctx, &cat, &reg, &dir)
         }
@@ -522,6 +583,56 @@ fn api(ctx: &Ctx, req: &Req, b: &Value) -> Result<Value, String> {
             adopt(home, &cat, &reg, &dir, b.get("name").and_then(Value::as_str).unwrap_or(""), s(b, "ros")?)?;
             remember(home, &dir);
             project_info(ctx, &cat, &reg, &dir)
+        }
+        "/api/sdk/setup" => {
+            // Create (or update) the light Python environment for SDK apps and point this project at it.
+            let dir = project_dir(b)?;
+            Project::load(&dir)?;
+            let script = roboforge_core::sdk::light_env_script(home);
+            let py = roboforge_core::sdk::light_python(home).to_string_lossy().to_string();
+            let sdk_path = roboforge_core::sdk::install(home)?.to_string_lossy().to_string();
+            let cwd = dir.clone();
+            let job = ctx.jobs.start("SDK environment", move |job| {
+                job.say("Setting up the light Python environment for RoboForge SDK apps (system Python + mujoco, pymavlink, gymnasium).");
+                let code = job.run_shell(&format!("export PYTHONPATH={}\n{script}", roboforge_core::sh_quote(&sdk_path)), &cwd);
+                if code == 0 {
+                    match Project::load(&cwd) {
+                        Ok(mut p) => {
+                            p.setup.python = Some(py.clone());
+                            match p.save(&cwd) {
+                                Ok(()) => job.say("\nThis project now uses that environment (Environment ▸ Python for builds)."),
+                                Err(e) => job.say(&format!("\nCould not update roboforge.json: {e}")),
+                            }
+                        }
+                        Err(e) => job.say(&format!("\nCould not update roboforge.json: {e}")),
+                    }
+                }
+                job.say(&format!("\n[exit {code}]"));
+                code
+            });
+            Ok(json!({ "job": job.id, "title": job.title }))
+        }
+        "/api/project/stack" => {
+            // Components and signal wiring of an SDK app, from the SDK's own `info` command.
+            let dir = project_dir(b)?;
+            let proj = Project::load(&dir)?;
+            write_activation(home, &cat, &dir, &proj, &project_components(&cat, &reg, &proj)?)?;
+            let cwd = fs_root(b)?;
+            let file = b.get("config").and_then(Value::as_str).unwrap_or("app.yaml");
+            if file.contains('/') || file.contains("..") {
+                return Err("config must be a file name in the workspace".into());
+            }
+            let script = wrap(&dir, &format!("python3 -m roboforge info {} --json", roboforge_core::sh_quote(file)), None);
+            let out = std::process::Command::new("bash").arg("-c").arg(script).current_dir(&cwd).stdin(std::process::Stdio::null()).output().map_err(|e| e.to_string())?;
+            let text = String::from_utf8_lossy(&out.stdout);
+            match text.find('{').and_then(|i| serde_json::from_str::<Value>(&text[i..]).ok()) {
+                Some(v) if out.status.success() => Ok(v),
+                _ => {
+                    let err = String::from_utf8_lossy(&out.stderr);
+                    let last: Vec<&str> = err.lines().filter(|l| !l.starts_with("roboforge: SDK environment") && !l.trim().is_empty()).collect();
+                    Err(format!("Could not read the app.\n{}\nRun \"SDK: check environment\" to see what is missing.", last.iter().rev().take(3).rev().cloned().collect::<Vec<_>>().join("\n")))
+                }
+            }
         }
         "/api/project/import" => {
             // Android-Studio-style import: the source folder is only read. The RoboForge

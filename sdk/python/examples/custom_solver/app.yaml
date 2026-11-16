@@ -1,0 +1,12 @@
+# A physics backend of your own (solver.py), named in the config like any other part.
+# Run it:      python3 -m roboforge run app.yaml --headless --duration 5 --tap --check
+# Compare it:  python3 compare.py         (the same app on MuJoCo, side by side)
+roboforge: 1
+name: custom_solver
+
+# No robot: the solver knows its own model. Everything below is unchanged from a MuJoCo app.
+physics: {type: "solver:TwoLinkArm", timestep: 0.002}
+
+controllers:
+  - {type: "controller:Swing", rate: 50}
+  - {type: joint_pd, rate: 500, kp: 40, ki: 10, kd: 4}

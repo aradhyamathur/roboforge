@@ -438,6 +438,51 @@ fn folder_tools(root: &Path, ws: Option<&str>, tools: &mut Vec<Tool>, notes: &mu
         kinds.push("command script".into());
     }
 
+    // --- RoboForge SDK apps: a YAML file whose top level has `roboforge:` ---
+    let mut apps = 0;
+    for f in names.iter().filter(|n| n.ends_with(".yaml") || n.ends_with(".yml")) {
+        let path = root.join(f);
+        if !crate::sdk::is_app_config(&path) {
+            continue;
+        }
+        let text = read_small(&path);
+        let top = |key: &str| text.lines().find_map(|l| l.strip_prefix(&format!("{key}:")).map(|v| v.split('#').next().unwrap_or("").trim().to_string()));
+        let app_name = top("name").filter(|n| !n.is_empty()).unwrap_or_else(|| f.trim_end_matches(".yaml").trim_end_matches(".yml").to_string());
+        let simulated = text.contains("type: mujoco");
+        let mut parts = Vec::new();
+        if simulated { parts.push("MuJoCo"); }
+        if text.contains("type: ros2") { parts.push("ROS 2"); }
+        if text.contains("type: mavlink") { parts.push("MAVLink"); }
+        let role = if simulated { "sim" } else { "run" };
+        let mut t = mk(format!("app:{f}"), format!("App: {app_name}"), format!("python3 -m roboforge run {f}"), role,
+            format!("RoboForge SDK app{}", if parts.is_empty() { String::new() } else { format!(" · {}", parts.join(" + ")) }));
+        t.needs = vec!["python3".into()];
+        t.hint = "python3 is not in this environment.".into();
+        tools.push(t);
+        apps += 1;
+    }
+    if apps > 0 {
+        kinds.push("RoboForge SDK app".into());
+    }
+
+    // --- MuJoCo models (MJCF) in the folder or its models/ ---
+    let mut models: Vec<PathBuf> = names.iter().filter(|n| n.ends_with(".xml")).map(|n| root.join(n)).collect();
+    if let Ok(rd) = std::fs::read_dir(root.join("models")) {
+        let mut more: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.is_file() && has_ext(p, "xml")).collect();
+        more.sort();
+        models.extend(more);
+    }
+    let mut n = 0;
+    for m in models.into_iter().filter(|p| read_small(p).contains("<mujoco")) {
+        let relp = m.strip_prefix(root).unwrap_or(&m).to_string_lossy().to_string();
+        let mut t = mk(format!("mjcf:{relp}"), format!("Tool: view {}", file_name(&m)), format!("python3 -m mujoco.viewer --mjcf={}", sh_quote(&relp)), "tool", format!("MuJoCo model {relp}"));
+        t.needs = vec!["python3".into()];
+        tools.push(t);
+        n += 1;
+        if n >= 6 { break; }
+    }
+    if n > 0 { kinds.push("MuJoCo models".into()); }
+
     // --- Makefile targets ---
     if names.iter().any(|n| n == "Makefile" || n == "makefile") {
         let text = read_small(&root.join(if names.iter().any(|n| n == "Makefile") { "Makefile" } else { "makefile" }));
@@ -814,6 +859,8 @@ pub fn scan(dir: &Path, proj: &Project, env: &HashMap<String, String>) -> Scan {
         if t.id == "rqt_graph" || t.id == "save_map" { s -= 5; }
         if !t.args.is_empty() { s -= 8; }
         if t.id.contains(".sh:") || t.id.starts_with("make:") { s += 4; }   // the project's own entry points
+        if t.id.starts_with("app:") { s += 6; }
+        if t.id == "mission.py" { s += 3; }
         if t.id.starts_with("world:") { s -= 1; }
         if t.id.rsplit(':').next() == Some(t.role.as_str()) { s += 3; }      // `run.sh train` is the train command
         s

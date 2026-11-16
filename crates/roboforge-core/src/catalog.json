@@ -2,6 +2,23 @@
  "schema": 1,
  "components": [
   {
+   "id": "roboforge-sdk",
+   "name": "RoboForge SDK",
+   "category": "framework",
+   "version": "0.1.0",
+   "summary": "The Python SDK: one API for simulators, renderers, ROS 2, MAVLink and controllers. Ships with the IDE.",
+   "pip": [
+    [
+     "numpy",
+     "pyyaml",
+     "gymnasium"
+    ]
+   ],
+   "env": {
+    "PYTHONPATH": "{home}/sdk/python${PYTHONPATH:+:$PYTHONPATH}"
+   }
+  },
+  {
    "id": "ros1-noetic",
    "name": "ROS 1 Noetic",
    "category": "ros",
@@ -247,6 +264,18 @@
    "pip": [
     [
      "mavsdk"
+    ]
+   ]
+  },
+  {
+   "id": "pymavlink",
+   "name": "pymavlink",
+   "category": "autopilot",
+   "version": "latest",
+   "summary": "MAVLink for Python: what the RoboForge SDK's MAVLink link speaks (vehicle emulation, client, PX4-in-the-loop).",
+   "pip": [
+    [
+     "pymavlink"
     ]
    ]
   },
