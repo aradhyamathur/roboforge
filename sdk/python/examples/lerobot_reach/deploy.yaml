@@ -1,0 +1,16 @@
+# Step 3: run the trained policy (see the tutorial for step 2, training).
+#   python3 -m roboforge run deploy.yaml --headless --duration 10 --tap 2.5
+#
+# The Goals controller sets a goal every 2.5 s; the LeRobot policy reads the
+# joints and the goal and outputs joint targets, which joint_pd turns into
+# torques. Which signals the policy reads was saved with it when it was trained.
+roboforge: 1
+name: lerobot_deploy
+
+robot: arm
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Goals", rate: 20, period: 2.5}
+  - {type: lerobot, path: policies/arm_act}
+  - {type: joint_pd, rate: 500}

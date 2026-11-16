@@ -75,6 +75,18 @@ The bundled robots.
 
 Export a recording (:doc:`../tutorials/record_export`).
 
+``lerobot``
+-----------
+
+.. code-block:: console
+
+   $ python3 -m roboforge lerobot info DATASET
+   $ python3 -m roboforge lerobot train DATASET --out FOLDER [--policy act] [--steps 2000] [--batch-size 32]
+         [--lr X] [--device auto|cpu|cuda|mps] [--log-every 200] [name=value ...]
+
+``name=value`` options go to the LeRobot policy's configuration. See
+:doc:`../tutorials/lerobot`.
+
 ``cpp``
 -------
 

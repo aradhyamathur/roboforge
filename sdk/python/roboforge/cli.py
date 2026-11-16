@@ -23,6 +23,7 @@ PARTS = [
     ("mavlink", "pymavlink", "MAVLink link (vehicle, client, hil)", "pip install pymavlink"),
     ("ros2", "rclpy", "ROS 2 link", "source a ROS 2 setup file (e.g. /opt/ros/<distro>/setup.bash)"),
     ("gym", "gymnasium", "Gymnasium environment adapter", "pip install gymnasium"),
+    ("lerobot", "lerobot", "LeRobot datasets and policies (optional)", 'pip install "lerobot[dataset]" (needs numpy < 2.3; see the LeRobot tutorial)'),
 ]
 
 
@@ -103,6 +104,20 @@ def _main(argv=None) -> int:
     ex.add_argument("--out", required=True)
     ex.add_argument("--camera")
     # Overrides may come before or after the options (`run app.yaml --headless physics.substeps=2`).
+    lr = sub.add_parser("lerobot", help="LeRobot: train a policy on a recorded dataset, describe a dataset")
+    lsub = lr.add_subparsers(dest="lerobot_cmd", required=True)
+    lt = lsub.add_parser("train", help="train a LeRobot policy on a dataset")
+    lt.add_argument("dataset")
+    lt.add_argument("--out", required=True, help="folder to save the policy to")
+    lt.add_argument("--policy", default="act", help="LeRobot policy type: act, diffusion, ... (default act)")
+    lt.add_argument("--steps", type=int, default=2000)
+    lt.add_argument("--batch-size", type=int, default=32)
+    lt.add_argument("--lr", type=float)
+    lt.add_argument("--device", default="auto", help="auto (GPU if PyTorch can use one), cpu, cuda, mps")
+    lt.add_argument("--log-every", type=int, default=200, help="print the loss every N steps")
+    lt.add_argument("options", nargs="*", help="policy config options, e.g. chunk_size=10 dim_model=64 use_vae=false")
+    li = lsub.add_parser("info", help="describe a LeRobot dataset")
+    li.add_argument("dataset")
     cp = sub.add_parser("cpp", help="C++ controllers: header location, build, new")
     csub = cp.add_subparsers(dest="cpp_cmd", required=True)
     csub.add_parser("include", help="print the folder to add to the include path (-I)")
@@ -115,6 +130,8 @@ def _main(argv=None) -> int:
     if extra:
         if a.cmd in ("run", "info") and not any(x.startswith("-") for x in extra):
             a.overrides = list(a.overrides) + extra
+        elif a.cmd == "lerobot" and getattr(a, "lerobot_cmd", "") == "train" and not any(x.startswith("-") for x in extra):
+            a.options = list(a.options) + extra
         else:
             ap.error(f"unrecognized arguments: {' '.join(extra)}")
 
@@ -131,6 +148,21 @@ def _main(argv=None) -> int:
         from .robot import Robot
         for name, spec in Robot.zoo_names().items():
             print(f"  {name:12s} {spec['profile']:12s} {spec.get('summary', '')}")
+        return 0
+    if a.cmd == "lerobot":
+        from . import lerobot
+        if a.lerobot_cmd == "info":
+            print(json.dumps(lerobot.info(a.dataset), indent=2))
+            return 0
+        import yaml
+        opts = {}
+        for item in a.options:
+            if "=" not in item:
+                from .errors import ConfigError
+                raise ConfigError(f"policy option {item!r} is not of the form name=value (for example chunk_size=10)")
+            k, _, v = item.partition("=")
+            opts[k] = yaml.safe_load(v)
+        lerobot.train(a.dataset, a.out, policy=a.policy, steps=a.steps, batch_size=a.batch_size, lr=a.lr, device=a.device, log_every=a.log_every, **opts)
         return 0
     if a.cmd == "cpp":
         from . import cpp

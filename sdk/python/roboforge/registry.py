@@ -112,6 +112,8 @@ CALLBACKS.register("rate_monitor", "roboforge.callbacks:RateMonitor")
 CALLBACKS.register("viewer", "roboforge.callbacks:Viewer")
 CALLBACKS.register("tap", "roboforge.callbacks:Tap")
 CALLBACKS.register("checks", "roboforge.callbacks:Checks")
+CALLBACKS.register("lerobot_recorder", "roboforge.lerobot:LeRobotRecorder")
+CONTROLLERS.register("lerobot", "roboforge.lerobot:LeRobotPolicy")
 
 
 def load_plugins() -> None:

@@ -34,6 +34,12 @@ def as_row(m):
         return np.asarray(m.values, float).reshape(-1)
     if isinstance(m, msgs.JointCommand):
         return np.asarray(m.position, float).reshape(-1)
+    if isinstance(m, msgs.Setpoint):
+        if m.position is not None:
+            return np.append(np.asarray(m.position, float).reshape(-1), float(m.yaw))
+        if m.velocity is not None:
+            return np.append(np.asarray(m.velocity, float).reshape(-1), float(m.yaw))
+        return None
     if hasattr(m, "as_array"):
         return np.asarray(m.as_array(), float).reshape(-1)
     if isinstance(m, (np.ndarray, list, tuple, int, float)) and not isinstance(m, bool):

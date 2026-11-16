@@ -97,6 +97,18 @@ the New Project picker accepts, through the IDE's own API on an empty
 RoboForge home, sets up the environment, reads the Stack view and runs each
 one; the 5 combinations it refuses are checked too.
 
+LeRobot
+-------
+
+``tests/test_lerobot.py`` (run in the LeRobot environment; skipped
+elsewhere) records datasets with and without cameras, appends to them,
+trains ACT, deploys it from a folder, checks the refusals, and runs the
+example's record, train, deploy and evaluate steps through the command
+line. The whole SDK test suite also passes in that environment, with numpy
+2.2 and LeRobot 0.7.0's dependencies. Training on a GPU was checked on a
+GTX 1070 with PyTorch 2.14 for CUDA 12.6. Policies from the Hugging Face hub
+were not loaded in the tests (they need the network and a matching robot).
+
 C++
 ---
 

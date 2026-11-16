@@ -1,0 +1,16 @@
+# Optional: LeRobot (Hugging Face) for recording datasets, training and running its policies
+# (tutorial 19). Install it in an environment of its own: LeRobot 0.7 needs numpy < 2.3, older
+# than requirements.txt pins. From the repository root:
+#
+#   uv venv --python /usr/bin/python3 --system-site-packages .venv-lerobot
+#   uv pip install --python .venv-lerobot/bin/python --torch-backend cpu -r requirements-lerobot.txt -e sdk/python
+#
+# --torch-backend cu126 (or the CUDA version your driver supports) for a GPU.
+lerobot[dataset]==0.7.0
+mujoco==4.0.1
+pymavlink==2.4.50
+pyyaml==6.0.3
+pytest==9.2.0
+# With --system-site-packages (to keep ROS 2's rclpy), Ubuntu's own SciPy, built for numpy 1.x,
+# would otherwise be imported and fail: install a matching one here.
+scipy

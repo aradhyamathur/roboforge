@@ -38,6 +38,16 @@ C++ controllers
 .. autofunction:: roboforge.cpp.include_dir
 .. autofunction:: roboforge.cpp.new
 
+LeRobot
+-------
+
+.. autoclass:: roboforge.lerobot.LeRobotRecorder
+   :members: end_episode, discard_episode
+.. autoclass:: roboforge.lerobot.LeRobotPolicy
+.. autofunction:: roboforge.lerobot.train
+.. autofunction:: roboforge.lerobot.info
+.. autofunction:: roboforge.lerobot.pick_device
+
 Policies
 --------
 

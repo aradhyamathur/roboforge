@@ -115,6 +115,10 @@ class App:
         self.physics.reset()
         for c in self.controllers:
             c.reset()
+        for cb in self.callbacks:
+            hook = getattr(cb, "on_reset", None)
+            if hook is not None:
+                hook(self)
         self._next.clear()
         self._wall0, self._sim0 = time.monotonic(), self.physics.time
 

@@ -58,7 +58,7 @@ def test_run_with_overrides_records_a_dataset(tmp_path):
 def test_doctor_and_bad_config(tmp_path):
     r = cli("doctor", "--json")
     parts = {p["name"]: p for p in json.loads(r.stdout)["parts"]}
-    assert parts["mujoco"]["ok"] and set(parts) == {"mujoco", "mavlink", "ros2", "gym"}
+    assert parts["mujoco"]["ok"] and set(parts) == {"mujoco", "mavlink", "ros2", "gym", "lerobot"}
     (tmp_path / "bad.yaml").write_text("robot: arm\ncontrollers:\n  - {type: nope}\n")
     r = cli("run", "bad.yaml", "--headless", cwd=tmp_path)
     assert r.returncode != 0 and "unknown controller 'nope'" in r.stderr

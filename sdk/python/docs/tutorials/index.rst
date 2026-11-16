@@ -1,9 +1,10 @@
 Tutorials
 =========
 
-Eighteen small tutorials, one idea each. Tutorials 14 to 17 build your own
+Nineteen small tutorials, one idea each. Tutorials 14 to 17 build your own
 policy, renderer, physics solver and SLAM method, and show how little code
-each takes; 18 writes a controller in C++. They are toys on purpose: CPU only,
+each takes; 18 writes a controller in C++; 19 does imitation learning with
+Hugging Face's LeRobot. They are toys on purpose: CPU only,
 no GPU, about 150 MB of memory, seconds to a minute to run. On a desktop with
 8 cores the simulator steps 17 to 30 times faster than real time
 (8 to 13 times with a 320×240 camera), so a laptop is enough.
@@ -108,6 +109,10 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
      - :doc:`cpp_controller`
      - A controller in C++, under a Python one; built for you or with CMake
      - C++ compiler
+   * - 19
+     - :doc:`lerobot`
+     - Record demonstrations as a LeRobot dataset, train ACT, deploy it; hub policies; GPU
+     - LeRobot
 
 .. toctree::
    :hidden:
@@ -131,3 +136,4 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
    custom_solver
    custom_slam
    cpp_controller
+   lerobot

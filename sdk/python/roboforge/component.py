@@ -185,3 +185,6 @@ class Callback(Component):
 
     def on_stop(self, app) -> None:
         pass
+
+    def on_reset(self, app) -> None:
+        """Called by `app.reset()`, after the world is back at its start (an episode ended)."""

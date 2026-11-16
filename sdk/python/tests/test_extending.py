@@ -235,3 +235,23 @@ def test_decode_runs_in_training_and_deployment_and_sets_a_unit_action_space():
 def test_env_explains_a_missing_signal_before_the_first_episode():
     with pytest.raises(ValueError, match="on_reset"):
         Reach(rate=20).make_env(arm_app())
+
+
+def test_on_reset_reaches_callbacks_and_setpoints_record():
+    from roboforge.callbacks import as_row
+    seen = []
+
+    class Count(rf.Callback):
+        def on_reset(self, app):
+            seen.append(app.time)
+
+    class Old(rf.Callback):                                # a callback written before on_reset existed
+        def on_step(self, app, t):
+            pass
+    app = rf.App(robot="arm", callbacks=[Count(), Old()], realtime=False)
+    app.run(steps=10)
+    app.reset()
+    app.close()
+    assert seen == [0.0]
+    assert as_row(rf.Setpoint(position=[1, 2, 3], yaw=0.5)).tolist() == [1, 2, 3, 0.5]
+    assert as_row(rf.Setpoint(velocity=[1, 0, 0])).tolist() == [1, 0, 0, 0.0]

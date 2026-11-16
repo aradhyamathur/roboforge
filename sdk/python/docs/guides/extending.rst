@@ -28,6 +28,10 @@ examples, each a tutorial with a runnable folder:
    * - Sensors and a SLAM method (:doc:`../tutorials/custom_slam`)
      - callbacks that publish
      - recording any message type, ATE / RPE / alignment, TUM files
+   * - Imitation learning with LeRobot (:doc:`../tutorials/lerobot`)
+     - nothing: record, train, deploy from app.yaml and the CLI
+     - dataset writing, signal-to-feature mapping, training, device choice,
+       chunked actions
    * - A controller in C++ (:doc:`../tutorials/cpp_controller`)
      - ``step`` in a class, ``RF_EXPORT_CONTROLLER``
      - compiling, caching, loading, passing data, parameters with typo

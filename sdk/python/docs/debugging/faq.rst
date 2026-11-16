@@ -6,8 +6,9 @@ Do I need ROS 2?
    import it.
 
 Do I need a GPU?
-   No. Physics runs on the CPU. Camera rendering uses whatever OpenGL is
-   available and has a software fallback.
+   No. Physics runs on the CPU. Camera rendering uses the GPU when there is
+   one and Mesa otherwise. Training and running neural policies use the GPU
+   when PyTorch can (``device="auto"``); see :ref:`install:What uses a GPU`.
 
 Do I need the IDE?
    No. An app is a folder of text files; ``python3 -m roboforge run
@@ -48,9 +49,10 @@ Can I use Gazebo or Isaac Sim instead of MuJoCo?
    stacks written for those simulators expect.
 
 How do I plug in a learned policy or a VLA?
-   As a controller: load the model in ``setup``, run it in ``step``, wrap it
-   in ``rf.Async`` (:doc:`../tutorials/pid_to_policy`). Train against
-   ``app.as_env()`` (:doc:`../tutorials/training`).
+   A LeRobot policy (ACT, Diffusion, pi0, SmolVLA, ...) is one line,
+   ``{type: lerobot, path: ...}`` (:doc:`../tutorials/lerobot`). Any other
+   model: an ``rf.Policy`` (:doc:`../tutorials/custom_policy`), wrapped in
+   ``rf.Async`` if it is slow (:doc:`../tutorials/pid_to_policy`).
 
 Does QGroundControl work with vehicle mode?
    The vehicle sends the messages ground stations use, and plain pymavlink

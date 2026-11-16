@@ -82,8 +82,9 @@ In Docker
 
 The repository's ``Dockerfile`` builds one image with everything: ROS 2
 Jazzy, MuJoCo, pymavlink, Gymnasium, a C++ toolchain for C++ controllers,
-the documentation tools, PyTorch (CPU) and stable-baselines3, and the IDE.
-About 3.3 GB.
+the documentation tools, PyTorch (CPU) and stable-baselines3, LeRobot in a
+second environment (``source /opt/roboforge/venv-lerobot/bin/activate``),
+and the IDE.
 
 .. code-block:: console
 
@@ -116,6 +117,41 @@ apps with a ROS 2 link.
 
 To see whether the machine is fast enough, run
 ``examples/debugging/health_check.py`` (:ref:`debugging/toolbox:Is this machine fast enough?`).
+
+LeRobot
+-------
+
+LeRobot needs ``numpy < 2.3``, older than the version pinned here, so give
+it an environment of its own: ``requirements-lerobot.txt`` and
+:doc:`tutorials/lerobot` have the commands. The
+SDK and its whole test suite work in both.
+
+What uses a GPU
+---------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Part
+     - On a GPU?
+   * - Physics (MuJoCo)
+     - No: one world, stepped on the CPU
+   * - Camera rendering
+     - Yes, when there is one: MuJoCo renders through the GPU's EGL driver
+       (0.4 ms per 640×480 frame on a GTX 1070), and through Mesa on the CPU
+       otherwise
+   * - Training and running policies (PyTorch, LeRobot)
+     - Yes, when PyTorch can use the GPU: ``device="auto"`` picks it.
+       PyTorch must be built for a CUDA version the driver supports
+       (``uv pip install --torch-backend cu126 ...`` for a CUDA 12.6 driver)
+   * - Your own code
+     - Anything; ``rf.Policy`` and the C++ controllers convert GPU tensors
+       for you
+
+A GPU pays off for large models and camera inputs: ACT with a camera trained
+8.5 times faster on a GTX 1070 than on an 8-core CPU. The small state-only
+policies of the tutorials train as fast on a CPU.
 
 Without a display
 -----------------

@@ -9,3 +9,4 @@ _build/
 # Libraries the SDK builds from C++ controllers
 build/
 *.so
+.venv*/

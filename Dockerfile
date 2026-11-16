@@ -8,6 +8,10 @@
 #   docker build -t roboforge .                                  # with PyTorch (CPU build) + stable-baselines3
 #   docker build -t roboforge --build-arg WITH_ML=0 .            # without them
 #   docker build -t roboforge --build-arg TORCH_BACKEND=cu128 .  # PyTorch for an NVIDIA GPU (run with --gpus all)
+#   docker build -t roboforge --build-arg WITH_LEROBOT=0 .       # without LeRobot's environment
+#
+# LeRobot (tutorial 19) lives in a second environment, /opt/roboforge/venv-lerobot, because it
+# needs an older numpy than the main one:  source /opt/roboforge/venv-lerobot/bin/activate
 #
 # Run the IDE, then open http://127.0.0.1:7878 on the host:
 #   docker run --rm -it --network host -v ~/roboforge-projects:/home/ubuntu/roboforge-projects roboforge
@@ -43,6 +47,7 @@ ARG ROS_DISTRO
 ARG WITH_ML=1
 # cpu (default, small) or a CUDA variant such as cu128; `auto` picks one from the build machine's driver.
 ARG TORCH_BACKEND=cpu
+ARG WITH_LEROBOT=1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Tools the IDE's SDK Manager and run configurations use, a C++ toolchain for C++ controllers,
@@ -59,7 +64,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # The Python environment: the system Python (so ROS 2's rclpy stays importable) plus the pinned packages.
 ENV VIRTUAL_ENV=/opt/roboforge/venv
-COPY requirements.txt requirements-ml.txt /opt/roboforge/
+COPY requirements.txt requirements-ml.txt requirements-lerobot.txt /opt/roboforge/
 RUN uv venv --python /usr/bin/python3 --system-site-packages $VIRTUAL_ENV \
     && uv pip install --python $VIRTUAL_ENV/bin/python -r /opt/roboforge/requirements.txt \
     && if [ "$WITH_ML" = "1" ]; then uv pip install --python $VIRTUAL_ENV/bin/python --torch-backend "$TORCH_BACKEND" -r /opt/roboforge/requirements-ml.txt; fi \
@@ -68,6 +73,11 @@ RUN uv venv --python /usr/bin/python3 --system-site-packages $VIRTUAL_ENV \
 # The repository (SDK, examples, docs, tests) and the IDE.
 COPY . /opt/roboforge/src
 RUN uv pip install --python $VIRTUAL_ENV/bin/python --no-deps -e /opt/roboforge/src/sdk/python \
+    && if [ "$WITH_LEROBOT" = "1" ]; then \
+         uv venv --python /usr/bin/python3 --system-site-packages /opt/roboforge/venv-lerobot \
+         && uv pip install --python /opt/roboforge/venv-lerobot/bin/python --torch-backend "$TORCH_BACKEND" \
+              -r /opt/roboforge/requirements-lerobot.txt -e /opt/roboforge/src/sdk/python \
+         && rm -rf /root/.cache; fi \
     && chown -R ubuntu:ubuntu /opt/roboforge
 COPY --from=ide /src/target/release/roboforge /usr/local/bin/roboforge
 

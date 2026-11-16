@@ -1,0 +1,25 @@
+# Step 1: record demonstrations into a LeRobot dataset.
+#   python3 -m roboforge run record.yaml --headless --no-realtime --duration 80     # 40 episodes of 2 s
+#
+# The expert reaches a new random goal every 2 s; the recorder writes what the
+# policy will see (joints, goal) and what it should do (the joint target),
+# 20 times a second, one episode per goal.
+roboforge: 1
+name: lerobot_record
+
+robot: arm
+physics: {type: mujoco}
+
+controllers:
+  - {type: "controller:Expert", rate: 20, period: 2.0}
+  - {type: joint_pd, rate: 500}
+
+callbacks:
+  - type: lerobot_recorder
+    root: datasets/arm_reach
+    fps: 20
+    state: [state/joint]            # observation.state: joint positions and velocities
+    environment: [task/goal]        # observation.environment_state: the goal
+    action: cmd/joint               # action: the joint target
+    task: reach the goal
+    episode_seconds: 2.0

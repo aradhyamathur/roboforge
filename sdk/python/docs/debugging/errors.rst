@@ -174,6 +174,34 @@ Each of these carries ``(in controller X at t=...)``.
    ``obs["X"]`` before anything published it. Use ``obs.get("X")`` and
    handle ``None``.
 
+LeRobot
+-------
+
+``LeRobot is not installed ... (LeRobot needs numpy < 2.3 ...)``
+   See the environment in :doc:`../tutorials/lerobot`.
+
+``X already holds a LeRobot dataset. Use mode: append to add episodes, or record to another root.``
+
+``appending to X: it was recorded with state [...], this recorder has [...]``
+
+``lerobot_recorder action must be one of cmd/joint, cmd/actuators, cmd/velocity, cmd/setpoint``
+
+``lerobot_recorder fps must be a whole number``
+
+``lerobot_recorder needs at least one of state, environment or cameras to record``
+
+``lerobot_recorder: this frame does not match the dataset's features (a signal changed size?)``
+
+``X is not a LeRobot dataset (no meta/info.json)``
+
+``LeRobot policy 'act' does not take one of [...]``
+   A ``name=value`` option that the policy's configuration does not have.
+
+``the policy at P takes [...], but this controller would give it [...]``
+   ``state``, ``environment`` and ``cameras`` must match how its dataset was recorded.
+
+``no LeRobot policy at P: the folder does not exist`` / ``could not load a LeRobot policy from P ...``
+
 C++ controllers
 ---------------
 

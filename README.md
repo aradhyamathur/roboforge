@@ -2,13 +2,14 @@
   <img src="docs/assets/logo.png" alt="RoboForge logo: a robot gripper placing an orange cube on an anvil" width="280">
 </p>
 
-<h3 align="center">An Android-Studio-style home for robotics: one IDE, one SDK,<br>any simulator, ROS 2 and MAVLink as interchangeable parts.</h3>
+<h3 align="center">A home for robotics in the spirit of Android Studio and Hugging Face: one IDE, one SDK,<br>any simulator, ROS 2 and MAVLink as interchangeable parts, and learning built in.</h3>
 
 <p align="center">
   <img alt="Linux" src="https://img.shields.io/badge/platform-Linux-informational">
   <img alt="Rust" src="https://img.shields.io/badge/IDE-Rust%20%2B%20Tauri-orange">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/SDK-Python%203.10%2B-blue">
   <img alt="C++17" src="https://img.shields.io/badge/controllers-C%2B%2B17-00599C">
+  <img alt="LeRobot" src="https://img.shields.io/badge/%F0%9F%A4%97%20LeRobot-datasets%20%26%20policies-FFD21E">
   <img alt="ROS 2 Jazzy" src="https://img.shields.io/badge/ROS%202-Jazzy%20tested-22314E">
   <img alt="PX4" src="https://img.shields.io/badge/PX4%20SITL-flown-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-v0.1-yellow">
@@ -54,7 +55,7 @@ Then **New ▸ Build on the RoboForge SDK**, pick *MuJoCo + MAVLink*, press
 all the documentation ship inside the binary.
 
 **Or everything in Docker** (ROS 2 Jazzy, MuJoCo, pymavlink, Gymnasium, a C++
-toolchain, PyTorch CPU and stable-baselines3, the IDE):
+toolchain, PyTorch CPU and stable-baselines3, LeRobot in a second environment, the IDE):
 
 ```bash
 docker build -t roboforge .                     # --build-arg WITH_ML=0 leaves out PyTorch
@@ -70,6 +71,7 @@ gives a shell with ROS sourced and the SDK ready.
 
 ```bash
 pip install -r requirements.txt && pip install -e sdk/python   # requirements-ml.txt adds PyTorch (see its header for the CPU build)
+# LeRobot goes in an environment of its own (it needs numpy < 2.3): see requirements-lerobot.txt
 ```
 
 ```python
@@ -128,7 +130,31 @@ controllers:
 One header, no bindings, no build files: the SDK compiles, caches and loads
 it, and C++ and Python controllers mix freely in one app.
 
+**…or learn the controller from demonstrations, with LeRobot**
+
+```yaml
+callbacks:      # record any app as a LeRobot dataset
+  - {type: lerobot_recorder, root: datasets/arm_reach, fps: 20, state: [state/joint], environment: [task/goal], action: cmd/joint}
+```
+
+```bash
+python3 -m roboforge lerobot train datasets/arm_reach --out policies/arm_act   # ACT, Diffusion, ... on CPU or GPU
+```
+
+```yaml
+controllers:    # and run the trained policy (or one from the Hugging Face hub) like any controller
+  - {type: lerobot, path: policies/arm_act}
+  - {type: joint_pd, rate: 500}
+```
+
 ## Philosophy
+
+RoboForge takes its shape from two places. From **Android Studio**: one
+place to install every SDK, start from a template, run on a simulator and
+inspect what is happening. From **Hugging Face**: small composable libraries
+instead of one monolith, `from_pretrained`-style loading of models,
+datasets in a shared format, and the hub as the place they live; which is
+why LeRobot datasets and policies plug straight in.
 
 Robotics stacks are usually glued together: a bridge from this simulator to
 ROS, another from that simulator to PX4, a third from ROS to MAVLink. With
@@ -164,9 +190,11 @@ them. The fair summary, including when to use something else:
 | **Isaac Lab, Genesis, ManiSkill** | Massively parallel GPU training | CPU-first, runs on a laptop, and the same app talks ROS 2 and MAVLink, so a trained policy deploys unchanged | You need thousands of parallel environments on a GPU |
 | **RoboVerse / MetaSim** | One API over several simulators for learning benchmarks | Adds middleware, autopilots, a deployment path and an IDE | You are benchmarking learning across simulators |
 | **Drake** | Rigorous systems framework, optimisation, verification | Much smaller learning curve; built around ROS and MAVLink rather than its own physics | You need Drake's analysis and optimisation tools |
-| **LeRobot, robosuite** | Datasets and policies for manipulation | Any robot (multirotors, wheeled bases, URDFs), any transport; `rf.Policy` trains with Gymnasium tools and deploys as a controller | You want their pretrained policies and datasets (wrap them in `rf.Policy`) |
+| **LeRobot** | Datasets, policies (ACT, Diffusion, pi0, SmolVLA) and real low-cost arms | **Built on, not competing:** any RoboForge app records LeRobot datasets and runs LeRobot policies as controllers. Adds simulation with ground truth, any robot (multirotors, wheeled bases, URDFs), ROS 2 and MAVLink | You train and deploy only on LeRobot's own hardware: use LeRobot directly |
+| **robosuite** | Manipulation benchmarks | Any robot, any transport; `rf.Policy` and Gymnasium for training, deployment as a controller | You want its benchmark tasks |
 | **nerfstudio, Gaussian-splat SLAM repos** | State-of-the-art reconstruction | Live sensors with simulator ground truth; recordings export straight to nerfstudio and TUM; ATE and RPE built in | You only need offline reconstruction from real images |
-| **Android Studio (the inspiration)** | SDK manager, templates, run configs, inspectors | The same shape for robotics: SDK Manager, stack picker, run and launch configurations, a Stack view, a signal tap | You build Android apps |
+| **Android Studio (an inspiration)** | SDK manager, templates, run configs, inspectors | The same shape for robotics: SDK Manager, stack picker, run and launch configurations, a Stack view, a signal tap | You build Android apps |
+| **Hugging Face Transformers, Datasets, the hub (an inspiration)** | Small libraries, one loading convention, shared formats, a hub | The same habits for robots: parts with small interfaces, policies loaded by path or hub id, datasets in LeRobot's hub format | You are not doing robotics |
 
 ## What's in the box
 
@@ -196,7 +224,8 @@ them. The fair summary, including when to use something else:
   controllers** from one header
 - **Rendering**: colour, depth, render passes, custom renderers
 - **Data**: recorder, nerfstudio and TUM export, `rf.eval` (ATE, RPE)
-- **Training**: any app as a Gymnasium env (stable-baselines3 tested)
+- **Training**: any app as a Gymnasium env (stable-baselines3 tested);
+  **LeRobot** datasets, training and policies; CPU or GPU
 - **Debugging**: `--tap`, `--check`, one-line errors
 
 </td></tr>
@@ -221,7 +250,7 @@ them. The fair summary, including when to use something else:
 
 ## Tutorials
 
-Eighteen small tutorials, CPU only, each runs in seconds to a minute. They
+Nineteen small tutorials, CPU only (a GPU is optional), each runs in seconds to a minute or two. They
 ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 
 | Track | Tutorials |
@@ -231,6 +260,7 @@ ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 | **Real autopilot, real models** | 9 Real PX4 flying the MuJoCo vehicle · 10 Your own URDF |
 | **Debugging** | 13 Find five mistakes in a broken app |
 | **Build your own** | 14 Policy (numpy, PyTorch, stable-baselines3) · 15 Renderer · 16 Physics solver · 17 Sensors and SLAM · 18 A controller in C++ |
+| **Imitation learning** | 19 Record demonstrations as a LeRobot dataset, train ACT, deploy it; hub policies; GPU training |
 
 ## Documentation
 
@@ -247,13 +277,14 @@ ship with the IDE in `~/.roboforge/sdk/python/examples/`.
 
 | Area | How |
 |---|---|
-| SDK | 98 tests: every example and tutorial is run, C++ controllers are built (from source and with CMake) and checked against Python, the docs build with warnings as errors and the code they show is executed |
+| SDK | 106 tests (the 7 for LeRobot run in its environment): every example and tutorial is run, C++ controllers are built (from source and with CMake) and checked against Python, the docs build with warnings as errors and the code they show is executed |
 | Battle tests | 39 scenarios that try to break it: user mistakes, 10-minute runs, 300 apps opened and closed, hostile MAVLink and ROS peers, threads (`sdk/python/tests/battle`) |
+| LeRobot | 0.7.0: datasets recorded with and without cameras, ACT trained and deployed, the whole suite passing in LeRobot's environment; GPU training on a GTX 1070 |
 | Real PX4 | v1.18 built from source, flown with pymavlink and with the SDK's own client (`tests/px4`) |
 | IDE | 17 core tests; all 14 stack-picker combinations created and run through the IDE's API (`tests/api`); headless-browser UI checks (`tests/ui`) |
 
 **Not tested yet:** a physical robot; QGroundControl and MAVSDK; ROS 2 other
-than Jazzy; macOS and Windows; GPU training; the RoboStack/micromamba
+than Jazzy; macOS and Windows; policies from the Hugging Face hub (the loading path exists, none was run); the RoboStack/micromamba
 environment installs of the SDK Manager (the recipes follow upstream
 documentation but have not been run end to end); the generated module nodes
 (MoveIt, Nav2, MAVSDK bridge) against their real stacks.
@@ -261,7 +292,7 @@ documentation but have not been run end to end); the generated module nodes
 ## Roadmap
 
 - **Experiments**: wrappers for ORB-SLAM3, FAST-LIO, nerfstudio, gsplat,
-  MonoGS; a splat renderer over trained scenes; LeRobot and VLA policies;
+  MonoGS; a splat renderer over trained scenes; running pretrained VLAs (pi0, SmolVLA) on simulated robots;
   Experiments panel and signal monitor in the IDE.
 - **More simulators**: Gazebo and Isaac backends, a Simulator Manager,
   ArduPilot, lidar, multi-robot, learned world models.

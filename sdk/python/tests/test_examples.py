@@ -116,7 +116,8 @@ def test_example_script_runs(script, tmp_path):
 def test_every_example_is_covered_by_a_test():
     scripts = {str(p.relative_to(EXAMPLES)) for p in EXAMPLES.rglob("*.py")
                if '__name__ == "__main__"' in p.read_text() and p.name != "mission.py"}
-    assert scripts - set(SCRIPTS) == {"debugging/mavlink_sniffer.py"}, "add new example scripts to SCRIPTS (the sniffer has its own test)"
+    # The sniffer and the LeRobot evaluation have their own tests (test_examples, test_lerobot).
+    assert scripts - set(SCRIPTS) == {"debugging/mavlink_sniffer.py", "lerobot_reach/evaluate.py"}, "add new example scripts to SCRIPTS"
 
 
 def test_broken_app_tutorial_reports_each_mistake_in_turn(tmp_path):
