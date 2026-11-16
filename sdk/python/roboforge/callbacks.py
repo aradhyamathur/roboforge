@@ -160,3 +160,166 @@ class Viewer(Callback):
         if self._v is not None:
             self._v.close()
             self._v = None
+
+
+def summarize(msg, width: int = 46) -> str:
+    """A short, readable rendering of any message, for logs and tables."""
+    def num(v):
+        a = np.asarray(v, float).reshape(-1)
+        body = " ".join(f"{x:.2f}" for x in a[:6])
+        return f"[{body}{' ...' if len(a) > 6 else ''}]"
+    if isinstance(msg, msgs.Image):
+        text = f"{msg.data.shape[1]}x{msg.data.shape[0]} {msg.encoding}"
+    elif isinstance(msg, msgs.Pose):
+        text = f"pos {num(msg.position)}"
+    elif isinstance(msg, msgs.Twist):
+        text = f"lin {num(msg.linear)} ang {num(msg.angular)}"
+    elif isinstance(msg, msgs.JointState):
+        text = f"q {num(msg.position)}"
+    elif isinstance(msg, msgs.JointCommand):
+        text = f"q* {num(msg.position)}"
+    elif isinstance(msg, msgs.Imu):
+        text = f"acc {num(msg.accel)}"
+    elif isinstance(msg, msgs.ActuatorCommand):
+        text = f"u {num(msg.values)}"
+    elif isinstance(msg, msgs.Setpoint):
+        text = (f"pos {num(msg.position)}" if msg.position is not None else f"vel {num(msg.velocity)}" if msg.velocity is not None else "") + f" yaw {msg.yaw:.2f}"
+    elif isinstance(msg, msgs.VehicleStatus):
+        text = f"{'armed' if msg.armed else 'disarmed'} {msg.mode} {'landed' if msg.landed else 'in air'}"
+    elif isinstance(msg, msgs.Clock):
+        text = f"t {msg.t:.3f}"
+    else:
+        text = repr(msg)
+    return text if len(text) <= width else text[:width - 3] + "..."
+
+
+class Tap(Callback):
+    """Print what is on the bus while the app runs: every signal with its rate,
+    who publishes it and its latest value. The first thing to add when something
+    does not move.
+
+        callbacks:
+          - {type: tap, every: 1.0}                 # seconds of app time; or: python -m roboforge run app.yaml --tap
+
+    `signals` narrows the table to names or patterns (`["cmd/*", "state/pose"]`).
+    `rows()` returns the same table as data.
+    """
+    name = "tap"
+
+    def __init__(self, every: float = 1.0, signals=None):
+        from .errors import positive
+        self.every, self.signals = positive(every, "tap every"), signals
+
+    def on_start(self, app):
+        self._wall, self._t, self._counts = time.monotonic(), app.physics.time, {}
+
+    def rows(self, app) -> list:
+        import fnmatch
+        dt = app.physics.time - self._t
+        rows = []
+        for d in app.bus.describe():
+            if self.signals and not any(fnmatch.fnmatchcase(d["name"], p) for p in self.signals):
+                continue
+            n = d["count"] - self._counts.get(d["name"], 0)
+            rows.append({"name": d["name"], "type": d["type"], "rate": n / dt if dt > 0 else 0.0, "sources": d["sources"],
+                         "value": summarize(app.bus.latest(d["name"]))})
+        return rows
+
+    def on_step(self, app, t):
+        if t - self._t < self.every - 1e-9:        # app time, so a fast (not real-time) run is tapped just the same
+            return
+        rows = self.rows(app)
+        w = max([len(r["name"]) for r in rows] + [6])
+        lines = [f"roboforge tap  t={t:.2f}s"] + [
+            f"  {r['name']:<{w}}  {r['rate']:7.1f} Hz  {','.join(r['sources']) or '?':<22.22}  {r['value']}" for r in rows]
+        print("\n".join(lines), flush=True)
+        self._wall, self._t = time.monotonic(), t
+        self._counts = {d["name"]: d["count"] for d in app.bus.describe()}
+
+
+class Checks(Callback):
+    """Watch a running app for the usual reasons a robot does not do what was
+    expected, and say so once each, in plain words:
+
+    - nothing publishes `cmd/actuators` (no controller drives the motors)
+    - the actuators sit at their limits (gains too high, or a target out of reach)
+    - a multirotor stays disarmed while a setpoint is waiting
+    - the loop cannot keep up with real time
+    - a controller runs slower than its declared rate
+    - a link is dropping incoming messages
+
+        callbacks:
+          - {type: checks}                           # or: python -m roboforge run app.yaml --check
+
+    `findings` holds what was reported, as `(code, text)` pairs.
+    """
+    name = "checks"
+
+    def __init__(self, after: float = 1.0, every: float = 1.0):
+        from .errors import positive
+        self.after, self.every = positive(after, "checks after"), positive(every, "checks every")
+        self.findings: list = []
+
+    def on_start(self, app):
+        self._t0, self._wall0, self._next = app.physics.time, time.monotonic(), app.physics.time + self.after
+        self._sat = self._steps = 0
+        self._seen = set()
+        self._disarmed_since = None
+
+    def _say(self, code, text):
+        if code in self._seen:
+            return
+        self._seen.add(code)
+        self.findings.append((code, text))
+        print(f"roboforge check: {text}", flush=True)
+
+    def on_step(self, app, t):
+        rng = getattr(app.physics, "ctrl_range", None)
+        cmd = app.bus.latest(msgs.CMD_ACTUATORS)
+        if cmd is not None and rng is not None and len(rng) == len(cmd.values) and len(rng) and np.all(np.isfinite(rng)):
+            self._steps += 1
+            span = rng[:, 1] - rng[:, 0]
+            v = np.asarray(cmd.values, float)
+            if np.any((v <= rng[:, 0] + 0.01 * span) | (v >= rng[:, 1] - 0.01 * span)):
+                self._sat += 1
+        if t < self._next:
+            return
+        self._next = t + self.every
+        elapsed = t - self._t0
+        names = getattr(app.physics, "actuator_names", [])
+        if names and app.bus.count(msgs.CMD_ACTUATORS) == 0:
+            who = ", ".join(c.name or type(c).__name__ for c in app.controllers) or "none"
+            self._say("no-command", f"nothing has published cmd/actuators after {elapsed:.1f}s, so the {len(names)} actuators get no input. "
+                                    f"Controllers in this app: {who}. A controller that returns joint targets, setpoints or velocities "
+                                    f"needs a low-level controller after it (joint_pd, multirotor, diffdrive).")
+        if self._steps > 200 and self._sat / self._steps > 0.8:
+            self._say("saturated", f"the actuators have been at their limits {100 * self._sat / self._steps:.0f}% of the time. "
+                                   f"The gains are too high, or the target cannot be reached (check its units and frame).")
+        st = app.bus.latest(msgs.STATUS)
+        if st is not None and not st.armed and app.bus.latest(msgs.CMD_SETPOINT) is not None:
+            self._disarmed_since = self._disarmed_since if self._disarmed_since is not None else t
+            if t - self._disarmed_since > 3.0:
+                self._say("disarmed", "a setpoint is waiting but the vehicle is disarmed, so the motors stay off. Arm it first "
+                                      "(link.arm(), a MAVLink arm command, or rf.VehicleCommand('arm') on cmd/vehicle).")
+        else:
+            self._disarmed_since = None
+        pose, twist = app.bus.latest(msgs.POSE), app.bus.latest(msgs.TWIST)
+        if pose is not None and twist is not None and (pose.position[2] < -5.0 or twist.linear[2] < -30.0):
+            self._say("falling", f"the robot is in free fall (height {pose.position[2]:.1f} m, falling at {-twist.linear[2]:.0f} m/s). "
+                                 f"The model has no ground under it or no collision geometry: add a ground plane, or <collision> shapes to the URDF.")
+        wall = time.monotonic() - self._wall0
+        if app.realtime and wall > 3.0 and elapsed / app.speed / wall < 0.9:
+            self._say("slow", f"the app runs at x{elapsed / wall:.2f} of real time, below the x{app.speed:g} asked for: each step takes too long. "
+                              f"Lower the renderer's size or fps, slow the controllers down, or wrap a slow one in rf.Async.")
+        if elapsed > 2.0:
+            for c in app.controllers:
+                want, got = c.rate, app.controller_rate(c)
+                if want and want <= 1.0 / app.physics.dt + 1e-6 and got < 0.9 * want:
+                    self._say(f"rate-{id(c)}", f"controller {c.name or type(c).__name__} is declared at {want:g} Hz but runs at {got:.1f} Hz.")
+                elif want and want > 1.0 / app.physics.dt + 1e-6:
+                    self._say(f"rate-{id(c)}", f"controller {c.name or type(c).__name__} asks for {want:g} Hz, above the physics rate of "
+                                               f"{1.0 / app.physics.dt:g} Hz, so it runs once per step. Lower its rate or the physics timestep.")
+        for l in app.links:
+            if getattr(l, "dropped", 0) > 0:
+                self._say(f"dropped-{id(l)}", f"the {l.name} link has dropped {l.dropped} incoming messages so far (bad values or not addressed to this robot); "
+                                              f"its own warnings say which.")

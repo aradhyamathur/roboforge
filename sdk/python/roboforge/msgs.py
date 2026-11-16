@@ -1,6 +1,7 @@
 """Message types carried on the bus, and the standard signal names.
 
 Conventions, everywhere inside the SDK:
+
 - World frame is ENU (x east, y north, z up); body frame is FLU (x forward,
   y left, z up). This matches MuJoCo and ROS. Links convert at the edge
   (MAVLink uses NED / FRD).

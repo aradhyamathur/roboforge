@@ -197,8 +197,27 @@ def models_custom_broken_and_large():
     q = app.bus.latest("state/joint").position
     assert np.all(np.isfinite(q)) and len(q) == 1
     app.close()
-    # a URDF has joints but no motors: the joint controller must say what to add, not divide by zero
-    out.append(clear_error(lambda: rf.App(robot={"urdf": str(d / "ok.urdf")}, controllers=[rf.JointPD()], realtime=False).run(steps=5), "actuator"))
+    # a URDF has joints but no motors: one torque motor per joint is added, limited to the URDF's effort
+    app = rf.App(robot={"urdf": str(d / "ok.urdf")}, controllers=[rf.JointPD(rate=500, target=[0.7])], realtime=False)
+    app.run(duration=3.0)
+    assert app.physics.actuator_names == ["j1"] and app.physics.ctrl_range.tolist() == [[-20.0, 20.0]]
+    assert abs(app.bus.latest("state/joint").position[0] - 0.7) < 0.05, "the URDF joint did not follow its target"
+    app.close()
+    # asked not to add motors: the joint controller must say what is missing, not divide by zero
+    out.append(clear_error(lambda: rf.App(robot={"urdf": str(d / "ok.urdf"), "motors": False}, controllers=[rf.JointPD()], realtime=False).run(steps=5), "actuator"))
+    # a floating base with collision shapes lands on the ground that was added for it
+    (d / "float.urdf").write_text((URDF % '<box size="0.1 0.1 0.1"/>').replace('<link name="base">', '<link name="base"><collision><geometry><box size="0.2 0.2 0.1"/></geometry></collision>'))
+    app = rf.App(robot={"urdf": str(d / "float.urdf"), "floating_base": True, "position": [0, 0, 1.0]}, callbacks=[rf.Checks()], realtime=False)
+    app.run(duration=3.0)
+    z = app.bus.latest("state/pose").position[2]
+    assert 0.0 < z < 0.2, f"a floating URDF should come to rest on the ground, z={z:.2f}"
+    app.close()
+    # without collision shapes it falls for ever: the checks must say why
+    chk = rf.Checks()
+    app = rf.App(robot={"urdf": str(d / "ok.urdf"), "floating_base": True, "position": [0, 0, 1.0]}, callbacks=[chk], realtime=False)
+    app.run(duration=4.0)
+    app.close()
+    assert any(c == "falling" for c, _ in chk.findings), f"free fall was not reported: {chk.findings}"
     # MuJoCo drops a URDF's <visual> geometry unless told otherwise, so a missing visual mesh is not an error...
     (d / "mesh.urdf").write_text(URDF % '<mesh filename="package://my_robot/meshes/link1.stl"/>')
     app = rf.App(robot={"urdf": str(d / "mesh.urdf")}, realtime=False)

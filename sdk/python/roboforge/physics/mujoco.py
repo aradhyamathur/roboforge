@@ -42,7 +42,9 @@ class MujocoPhysics(Physics):
             raise ConfigError("the mujoco physics backend needs a robot (a model to load). Set `robot:`, or use `physics: none`.")
         self.bus, self.robot = app.bus, app.robot
         try:
-            self.model = mujoco.MjModel.from_xml_path(self.robot.model)
+            self.model = self._load(self.robot)
+        except ConfigError:
+            raise
         except Exception as e:
             raise ConfigError(f"MuJoCo could not load {self.robot.model}: {' '.join(str(e).split())}") from None
         if self._timestep:
@@ -72,6 +74,48 @@ class MujocoPhysics(Physics):
         self.outputs = [msgs.CLOCK, msgs.POSE, msgs.TWIST, msgs.IMU] + ([msgs.JOINT_STATE] if self._joints else [])
         self.bus.subscribe(msgs.CMD_ACTUATORS, self._on_cmd)
         self.reset()
+
+    @staticmethod
+    def _load(robot):
+        """Compile the robot's model, adding what a bare model lacks (see `Robot`)."""
+        urdf = str(robot.model).lower().endswith(".urdf")
+        ground = urdf if robot.ground is None else robot.ground
+        if robot.motors is False and not robot.floating_base and robot.position is None and not ground:
+            return mujoco.MjModel.from_xml_path(robot.model)
+        spec = mujoco.MjSpec.from_file(robot.model)
+        J = mujoco.mjtJoint
+        joints = [j for j in spec.joints if j.type in (J.mjJNT_HINGE, J.mjJNT_SLIDE)]
+        motors = (bool(joints) and not spec.actuators) if robot.motors is None else robot.motors
+        if not (motors or robot.floating_base or robot.position is not None or ground):
+            return mujoco.MjModel.from_xml_path(robot.model)        # nothing to add: load it exactly as written
+        if motors:
+            driven = {a.target for a in spec.actuators}
+            for j in joints:
+                if j.name in driven:
+                    continue
+                a = spec.add_actuator(name=j.name, trntype=mujoco.mjtTrn.mjTRN_JOINT, target=j.name)
+                lo, hi = j.actfrcrange                              # a URDF's <limit effort=...>
+                if hi > lo:
+                    a.ctrllimited, a.ctrlrange = mujoco.mjtLimited.mjLIMITED_TRUE, [lo, hi]
+        if robot.floating_base or robot.position is not None:
+            base = spec.body(robot.base) if robot.base else spec.worldbody.first_body()
+            if base is None:
+                raise ConfigError(f"the model has no body {'named ' + repr(robot.base) if robot.base else 'to use as the base'}")
+            if robot.position is not None:
+                pos = np.asarray(robot.position, float).reshape(-1)
+                if len(pos) != 3 or not np.all(np.isfinite(pos)):
+                    raise ConfigError(f"robot position must be [x, y, z], got {robot.position!r}")
+                base.pos = pos
+            if robot.floating_base and not any(j.type == J.mjJNT_FREE for j in spec.joints):
+                base.add_freejoint()
+        if urdf and not spec.geoms:
+            print(f"roboforge: {robot.name} has no collision geometry, so it will be invisible and pass through the ground. "
+                  f"MuJoCo ignores a URDF's <visual> shapes unless the URDF contains "
+                  f"<mujoco><compiler discardvisual=\"false\"/></mujoco>; add that, or add <collision> shapes.", flush=True)
+        if ground:
+            spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_PLANE, size=[0, 0, 0.05], name="ground", rgba=[0.86, 0.85, 0.82, 1])
+            spec.worldbody.add_light(pos=[0, 0, 4], dir=[0, 0, -1])
+        return spec.compile()
 
     def _sensor(self, kind):
         m = self.model

@@ -17,7 +17,8 @@ class NoPhysics(Physics):
     outputs = [msgs.CLOCK]
 
     def __init__(self, rate: float = 100.0):
-        self.dt = 1.0 / rate
+        from ..errors import positive
+        self.dt = 1.0 / positive(rate, "the rate of physics 'none'")
         self._t0 = time.monotonic()
         self.time = 0.0
 

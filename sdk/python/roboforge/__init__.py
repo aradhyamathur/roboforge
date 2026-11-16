@@ -14,7 +14,7 @@ talk through a signal bus (`roboforge.bus`), so any of them combine. See
 from . import msgs
 from .app import App
 from .bus import Bus
-from .callbacks import RateMonitor, Recorder, Viewer
+from .callbacks import Checks, RateMonitor, Recorder, Tap, Viewer, summarize
 from .component import Callback, Link, Physics, Renderer
 from .control import PID, Async, Chunk, Controller, Obs, controller
 from .data import Dataset

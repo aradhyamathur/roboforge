@@ -4,6 +4,12 @@
     Robot.from_mjcf("my_arm.xml")            # your MuJoCo model
     Robot.from_urdf("humanoid.urdf")         # your URDF (MuJoCo loads URDF too)
 
+A URDF describes links and joints but has no motors, no ground and a base
+fixed to the world. The physics backend fills those in: a torque motor per
+joint when the model has none (`motors`), a ground plane for URDFs
+(`ground`), and a free-moving base on request (`floating_base: true`,
+`position: [0, 0, 1]`).
+
 `profile` says what kind of machine it is (`multirotor`, `arm`, `diffdrive`,
 or the generic `articulated`), which picks sensible default controllers and
 link mappings. `params` holds anything a controller needs that the model does
@@ -31,6 +37,11 @@ class Robot:
     base: Optional[str] = None      # base body name; default: the first body
     cameras: list = field(default_factory=list)
     params: dict = field(default_factory=dict)
+    # What a bare model (a URDF above all) usually lacks. None means "decide from the model".
+    motors: Optional[bool] = None        # add a torque motor per joint; default: when the model has joints and no actuators
+    floating_base: bool = False          # give the base body a free joint (humanoids, legged and flying robots)
+    position: Optional[list] = None      # where to put the base body, [x, y, z]
+    ground: Optional[bool] = None        # add a ground plane and a light; default: when the model is a URDF
 
     def __post_init__(self):
         if self.profile not in PROFILES:
@@ -73,7 +84,7 @@ class Robot:
         if not isinstance(spec, dict):
             raise ConfigError(f"robot must be a zoo name or a mapping with zoo, mjcf or urdf; got {spec!r}")
         spec = dict(spec)
-        allowed = ["zoo", "mjcf", "urdf", "profile", "name", "base", "cameras", "params"]
+        allowed = ["zoo", "mjcf", "urdf", "profile", "name", "base", "cameras", "params", "motors", "floating_base", "position", "ground"]
         for k in spec:
             if k not in allowed:
                 raise ConfigError(f"robot has no setting {k!r}.{suggest(k, allowed)} Its settings: {', '.join(allowed)}.")

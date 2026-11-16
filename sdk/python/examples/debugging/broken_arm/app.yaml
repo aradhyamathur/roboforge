@@ -1,0 +1,15 @@
+# A deliberately broken app, for the "Debug a broken app" tutorial.
+# It has five mistakes. Run it, read what RoboForge says, fix one, run again:
+#
+#   python3 -m roboforge run app.yaml --headless --duration 5 --check
+#
+# app_fixed.yaml is the answer.
+roboforge: 1
+name: broken_arm
+
+robot: arm
+physics: {type: mujoco}
+renderer: {type: mujoco, cameras: [overveiw], width: 160, height: 120, fps: 5}
+
+controlers:
+  - {type: "controller:Reach", rte: 20}

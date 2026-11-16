@@ -54,12 +54,15 @@ class GymEnv(gym.Env):
         return obs, np.asarray(self.observe(obs), dtype=self.observation_space.dtype)
 
     def reset(self, *, seed=None, options=None):
+        """Start a new episode: reset the app and return `(observation, info)`."""
         super().reset(seed=seed)
         self.app.reset()
         self._n = 0
         return self._observe()[1], {}
 
     def step(self, action):
+        """Apply `action`, advance `steps_per_action` physics steps, and return
+        `(observation, reward, terminated, truncated, info)`."""
         self.app.publish(self.act(action), source="env")
         for _ in range(self.steps_per_action):
             self.app.step()
@@ -68,4 +71,5 @@ class GymEnv(gym.Env):
         return o, float(self.reward(obs)), bool(self.terminated(obs)), self._n >= self.max_steps, {}
 
     def close(self):
+        """Close the app underneath."""
         self.app.close()

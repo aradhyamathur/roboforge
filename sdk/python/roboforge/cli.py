@@ -1,6 +1,6 @@
 """Command line: `python -m roboforge <command>`.
 
-    run CONFIG [key=value ...] [--duration S] [--headless] [--no-realtime]
+    run CONFIG [key=value ...] [--duration S] [--headless] [--no-realtime] [--tap [S]] [--check]
     info CONFIG [--json]          components and signal wiring of an app
     doctor [--json]               which optional parts work in this environment
     zoo                           bundled robot models
@@ -84,6 +84,8 @@ def _main(argv=None) -> int:
     r.add_argument("--duration", type=float, help="seconds of app time to run (default: until Ctrl+C)")
     r.add_argument("--headless", action="store_true", help="no viewer window")
     r.add_argument("--no-realtime", action="store_true", help="run as fast as possible")
+    r.add_argument("--tap", nargs="?", const=1.0, type=float, metavar="SECONDS", help="print every signal's rate, source and value this often (default 1 s)")
+    r.add_argument("--check", action="store_true", help="watch for common problems (no command, saturation, disarmed, too slow) and report them")
     i = sub.add_parser("info", help="show an app's components and signal wiring")
     i.add_argument("config")
     i.add_argument("overrides", nargs="*")
@@ -151,6 +153,9 @@ def _main(argv=None) -> int:
             replace["callbacks"] = [c for c in (cfg.get("callbacks") or []) if (c if isinstance(c, str) else c.get("type")) != "viewer"]
         if a.no_realtime:
             replace["realtime"] = False
+        if a.tap or a.check:
+            extra_cb = ([{"type": "tap", "every": a.tap}] if a.tap else []) + ([{"type": "checks"}] if a.check else [])
+            replace["callbacks"] = list(replace.get("callbacks", cfg.get("callbacks") or [])) + extra_cb
         app = App.from_config(a.config, a.overrides, **replace)
         duration = a.duration if a.duration is not None else (cfg.get("run") or {}).get("duration")
         rb = app.robot

@@ -12,6 +12,8 @@ from .pid import PID
 class JointPD(Controller):
     """Drive torque actuators so the joints follow `cmd/joint` position targets.
 
+    A `JointCommand` with `names` may address any subset of the joints in any
+    order; without names it must give every joint, in the robot's order.
     Gains may be scalars or one value per joint. With no target yet, it holds
     the pose the robot had when the controller first ran.
     """
@@ -56,6 +58,18 @@ class JointPD(Controller):
         cmd = obs.get(msgs.CMD_JOINT)
         if cmd is not None and cmd is not self._seen and len(cmd.position):
             target = np.asarray(cmd.position, float).reshape(-1)
+            names = list(getattr(cmd, "names", None) or [])
+            if names and self._names and names != self._names:
+                # Addressed by name: any subset, in any order. Joints not named keep their target.
+                if len(names) != len(target):
+                    raise ValueError(f"the cmd/joint target names {len(names)} joints but gives {len(target)} positions")
+                unknown = [n for n in names if n not in self._names]
+                if unknown:
+                    raise ValueError(f"the cmd/joint target names unknown joints: {', '.join(unknown)}. This robot has {', '.join(self._names)}")
+                full = (self.target if self.target is not None else js.position).copy()
+                for n, p in zip(names, target):
+                    full[self._names.index(n)] = p
+                target = full
             self._check(target, "the cmd/joint target")
             self.target, self._seen = target, cmd
         if self.target is None:

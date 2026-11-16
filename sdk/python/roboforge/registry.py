@@ -109,6 +109,8 @@ CONTROLLERS.register("diffdrive", "roboforge.control.diffdrive:DiffDriveControll
 CALLBACKS.register("recorder", "roboforge.callbacks:Recorder")
 CALLBACKS.register("rate_monitor", "roboforge.callbacks:RateMonitor")
 CALLBACKS.register("viewer", "roboforge.callbacks:Viewer")
+CALLBACKS.register("tap", "roboforge.callbacks:Tap")
+CALLBACKS.register("checks", "roboforge.callbacks:Checks")
 
 
 def load_plugins() -> None:

@@ -46,7 +46,7 @@ fn main() {
     // The examples are the tutorials in docs/sdk.html; they ship too.
     println!("cargo:rerun-if-changed={}", sdk.join("examples").display());
     walk(&sdk.join("examples"), &sdk, &mut files);
-    files.retain(|(rel, _)| !rel.contains("__pycache__") && [".py", ".xml", ".yaml"].iter().any(|e| rel.ends_with(e)));
+    files.retain(|(rel, _)| !rel.contains("__pycache__") && [".py", ".xml", ".yaml", ".urdf"].iter().any(|e| rel.ends_with(e)));
     files.push(("pyproject.toml".into(), sdk.join("pyproject.toml")));
     let mut code = String::from("pub static SDK_FILES: &[(&str, &str)] = &[\n");
     for (rel, path) in files {

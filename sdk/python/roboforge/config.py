@@ -90,7 +90,7 @@ def resolve(config, overrides=()) -> tuple[dict, Path]:
         raise ConfigError(f"unknown config keys: {', '.join(sorted(unknown))}.{hints} Allowed: {', '.join(sorted(TOP_LEVEL))}")
     for k in ("links", "controllers", "callbacks"):
         if cfg.get(k) is not None and not isinstance(cfg[k], list):
-            raise ConfigError(f"`{k}` must be a list (lines starting with `- `), got a {type(cfg[k]).__name__}")
+            raise ConfigError(f"'{k}' must be a list (lines starting with '- '), got a {type(cfg[k]).__name__}")
     robot = cfg.get("robot")
     if isinstance(robot, dict):
         for k in ("mjcf", "urdf"):
