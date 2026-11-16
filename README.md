@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="RoboForge logo: a robot gripper placing an orange cube on an anvil" width="300">
+</p>
+
 # RoboForge
 
 A robotics IDE in Rust with an Android-Studio-style SDK manager: every project
