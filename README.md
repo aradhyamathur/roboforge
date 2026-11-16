@@ -53,7 +53,24 @@ Then **New ▸ Build on the RoboForge SDK**, pick *MuJoCo + MAVLink*, press
 **Set up SDK environment** when asked, and **▶ Run**. The SDK, its examples and
 all the documentation ship inside the binary.
 
+**Or everything in Docker** (ROS 2 Jazzy, MuJoCo, pymavlink, Gymnasium, a C++
+toolchain, PyTorch CPU and stable-baselines3, the IDE):
+
+```bash
+docker build -t roboforge .                     # --build-arg WITH_ML=0 leaves out PyTorch
+docker run --rm -it --network host -v ~/roboforge-projects:/home/ubuntu/roboforge-projects roboforge
+# then open http://127.0.0.1:7878
+```
+
+`--network host` because the IDE only listens on 127.0.0.1, and so ROS 2 and
+MAVLink reach the host as they would natively. `docker run ... roboforge bash`
+gives a shell with ROS sourced and the SDK ready.
+
 **The SDK, from Python**
+
+```bash
+pip install -r requirements.txt && pip install -e sdk/python   # requirements-ml.txt adds PyTorch (see its header for the CPU build)
+```
 
 ```python
 import roboforge as rf

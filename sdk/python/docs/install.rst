@@ -64,6 +64,40 @@ Two details matter, and both are about ROS 2:
 ``python3 -m venv`` works too if your system has ``python3-venv`` installed.
 Without ROS 2 any Python 3.10+ environment will do.
 
+With pip and the requirements files
+-----------------------------------
+
+The repository's ``requirements.txt`` pins every Python package to the
+version the SDK is tested with; ``requirements-ml.txt`` adds PyTorch and
+stable-baselines3 for the PyTorch examples:
+
+.. code-block:: console
+
+   $ pip install -r requirements.txt
+   $ pip install -e sdk/python
+   $ uv pip install --torch-backend cpu -r requirements-ml.txt      # optional; the CPU build is enough
+
+In Docker
+---------
+
+The repository's ``Dockerfile`` builds one image with everything: ROS 2
+Jazzy, MuJoCo, pymavlink, Gymnasium, a C++ toolchain for C++ controllers,
+the documentation tools, PyTorch (CPU) and stable-baselines3, and the IDE.
+About 3.3 GB.
+
+.. code-block:: console
+
+   $ docker build -t roboforge .                        # --build-arg WITH_ML=0 leaves out PyTorch
+   $ docker run --rm -it --network host roboforge       # the IDE, at http://127.0.0.1:7878
+   $ docker run --rm -it --network host roboforge bash  # a shell with ROS sourced and the SDK ready
+
+``--network host`` because the IDE listens on 127.0.0.1 only, and so ROS 2
+discovery and MAVLink's UDP reach the host as they would natively. Mount a
+folder at ``/home/ubuntu/roboforge-projects`` to keep projects; files are
+written as uid 1000. Rendering runs on the CPU (Mesa); for MuJoCo's viewer
+window add ``-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix``. The whole test
+suite passes inside the image.
+
 Check the installation
 ----------------------
 
