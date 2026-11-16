@@ -28,6 +28,13 @@ stable-baselines3 accept it.
      - ``obs -> array``. Default: joints, base pose and velocity, concatenated
    * - ``act``
      - ``action -> message``. Default: ``cmd/actuators`` (raw motor commands)
+   * - ``action_space``
+     - Required with your own ``act``: those actions are not motor commands, so
+       their range cannot be guessed. ``roboforge.env.box(ranges)`` makes one,
+       for example from ``app.physics.joint_range``
+   * - ``on_reset``
+     - ``rng -> {signal: message}``, published at the start of every episode:
+       a new goal, a new start pose
    * - ``reward``, ``terminated``
      - functions of the observations
    * - ``steps_per_action``
@@ -61,6 +68,9 @@ torques, and it is one argument.
 Ten seconds on a CPU. Random search over nine numbers is not a serious
 algorithm; the point is that the environment is ordinary, so a serious one
 drops in.
+
+For a policy of your own, ``rf.Policy.make_env`` fills all of this in from
+the policy (:doc:`custom_policy`).
 
 Good to know
 ------------

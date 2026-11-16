@@ -141,6 +141,14 @@ The built-in controllers
      - an error → a correction
      - ``rf.PID``: the building block, for use inside your own controller
 
+Learned policies
+----------------
+
+``rf.Policy`` is a controller split into ``observe(obs) -> array`` and
+``act(x) -> array``, the two halves a trainer needs, plus
+``make_env(app, reward=...)`` for training against it.
+:doc:`../tutorials/custom_policy` trains one and deploys it.
+
 Slow controllers
 ----------------
 

@@ -58,6 +58,17 @@ class Dataset:
         `state/joint`: positions then velocities; `sensor/imu`: accel then gyro)."""
         return {name: data for name, (_, data) in self._series().items()}
 
+    def trajectory(self, name: str = "state/pose"):
+        """`(t, poses)` of a recorded pose signal: times, and `(N, 7)` rows of
+        position then quaternion (w, x, y, z). For `rf.eval`."""
+        series = self._series()
+        if name not in series:
+            raise ValueError(f"no signal {name!r} in this dataset. Recorded: {', '.join(series) or 'none'}")
+        t, rows = series[name]
+        if rows.ndim != 2 or rows.shape[1] != 7:
+            raise ValueError(f"{name!r} is not a pose signal (its rows have {rows.shape[1]} values, a pose has 7)")
+        return t, rows
+
     def times(self, name: str) -> np.ndarray:
         """Timestamps (app time, seconds) of the samples of one signal."""
         series = self._series()

@@ -1,7 +1,9 @@
 Tutorials
 =========
 
-Thirteen small tutorials, one idea each. They are toys on purpose: CPU only,
+Seventeen small tutorials, one idea each. The last four build your own
+policy, renderer, physics solver and SLAM method, and show how little code
+each takes. They are toys on purpose: CPU only,
 no GPU, about 150 MB of memory, seconds to a minute to run. On a desktop with
 8 cores the simulator steps 17 to 30 times faster than real time
 (8 to 13 times with a 320×240 camera), so a laptop is enough.
@@ -86,6 +88,22 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
      - :doc:`debug_broken_app`
      - Finding five mistakes with the SDK's own tools
      -
+   * - 14
+     - :doc:`custom_policy`
+     - Your own neural-network policy: train, save, deploy; PyTorch and stable-baselines3
+     -
+   * - 15
+     - :doc:`custom_renderer`
+     - Your own renderer: Gaussian splats in numpy, no OpenGL
+     -
+   * - 16
+     - :doc:`custom_solver`
+     - Your own physics solver, checked against MuJoCo
+     -
+   * - 17
+     - :doc:`custom_slam`
+     - Your own sensors and SLAM method, scored with ATE and RPE
+     -
 
 .. toctree::
    :hidden:
@@ -104,3 +122,7 @@ need ``source /opt/ros/<distro>/setup.bash`` first. Add ``--headless`` to any
    training
    render_pass
    debug_broken_app
+   custom_policy
+   custom_renderer
+   custom_solver
+   custom_slam

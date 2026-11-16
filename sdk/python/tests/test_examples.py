@@ -16,8 +16,10 @@ def test_examples_are_found():
 
 
 @pytest.mark.parametrize("name", APPS)
-def test_example_app_runs(name):
-    folder = EXAMPLES / name
+def test_example_app_runs(name, tmp_path):
+    import shutil
+    folder = tmp_path / name                              # a copy: apps may record into their folder
+    shutil.copytree(EXAMPLES / name, folder)
     if "ros2" in (folder / "app.yaml").read_text():
         pytest.importorskip("rclpy")
     out = subprocess.run(
@@ -92,11 +94,18 @@ SCRIPTS = {   # script -> text its output must contain
     "debugging/step_through.py": "replayed to t=",
     "debugging/compare_runs.py": "identical, sample for sample",
     "debugging/health_check.py": "verdict:",
+    "custom_policy.py": "worst error 0.0",
+    "custom_renderer/compare.py": "same camera pose in both: True",
+    "custom_solver/compare.py": "agree",
+    "custom_slam/evaluate.py": "map: 8 of 8 landmarks found",
+    "sb3_ppo.py": "deployed through rf.Policy",
 }
 
 
 @pytest.mark.parametrize("script", sorted(SCRIPTS))
 def test_example_script_runs(script, tmp_path):
+    if script == "sb3_ppo.py":
+        pytest.importorskip("stable_baselines3")
     args = ["8", "--headless"] if script == "pid_to_policy.py" else []
     out = subprocess.run([sys.executable, str(EXAMPLES / script), *args], capture_output=True, text=True, cwd=tmp_path, timeout=180)
     assert out.returncode == 0, out.stderr[-2000:]
@@ -105,7 +114,7 @@ def test_example_script_runs(script, tmp_path):
 
 def test_every_example_is_covered_by_a_test():
     scripts = {str(p.relative_to(EXAMPLES)) for p in EXAMPLES.rglob("*.py")
-               if p.name not in ("controller.py", "mission.py")}
+               if '__name__ == "__main__"' in p.read_text() and p.name != "mission.py"}
     assert scripts - set(SCRIPTS) == {"debugging/mavlink_sniffer.py"}, "add new example scripts to SCRIPTS (the sniffer has its own test)"
 
 

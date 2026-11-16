@@ -14,11 +14,43 @@ from .component import Callback
 from .data import write_png
 
 
+def as_row(m):
+    """One recorded row for a message, or None if it is not recordable.
+
+    Decided by the message's type, not the signal's name, so an estimate
+    published as a `Pose` on `slam/pose` records like `state/pose` does. Your
+    own message types record if they have an `as_array()` method; plain numpy
+    arrays and numbers record as they are.
+    """
+    if isinstance(m, msgs.Pose):
+        return np.concatenate([m.position, m.orientation])
+    if isinstance(m, msgs.Twist):
+        return np.concatenate([m.linear, m.angular])
+    if isinstance(m, msgs.JointState):
+        return np.concatenate([m.position, m.velocity])
+    if isinstance(m, msgs.Imu):
+        return np.concatenate([m.accel, m.gyro])
+    if isinstance(m, msgs.ActuatorCommand):
+        return np.asarray(m.values, float).reshape(-1)
+    if isinstance(m, msgs.JointCommand):
+        return np.asarray(m.position, float).reshape(-1)
+    if hasattr(m, "as_array"):
+        return np.asarray(m.as_array(), float).reshape(-1)
+    if isinstance(m, (np.ndarray, list, tuple, int, float)) and not isinstance(m, bool):
+        try:
+            return np.asarray(m, float).reshape(-1)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 class Recorder(Callback):
     """Record a run as a `Dataset` (see `roboforge.data`).
 
     Records pose, twist, joints and IMU at `rate` Hz (default: every step)
-    and every camera frame published. `signals` narrows the list.
+    and every camera frame published. `signals` replaces the list; it may name
+    any signal whose messages are poses, twists, joint states, IMU readings,
+    commands, arrays, or your own types with `as_array()` (see `as_row`).
     """
     name = "recorder"
 
@@ -67,17 +99,8 @@ class Recorder(Callback):
             m = app.bus.latest(s)
             if m is None:
                 continue
-            if s in (msgs.POSE,):
-                row = np.concatenate([m.position, m.orientation])
-            elif s in (msgs.TWIST,):
-                row = np.concatenate([m.linear, m.angular])
-            elif s == msgs.JOINT_STATE:
-                row = np.concatenate([m.position, m.velocity])
-            elif s == msgs.IMU:
-                row = np.concatenate([m.accel, m.gyro])
-            elif s == msgs.CMD_ACTUATORS:
-                row = np.asarray(m.values, float)
-            else:
+            row = as_row(m)
+            if row is None:
                 continue
             self._rows[s].append(row)
             self._times[s].append(t)

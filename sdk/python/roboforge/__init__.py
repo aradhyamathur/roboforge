@@ -17,6 +17,8 @@ from .bus import Bus
 from .callbacks import Checks, RateMonitor, Recorder, Tap, Viewer, summarize
 from .component import Callback, Link, Physics, Renderer
 from .control import PID, Async, Chunk, Controller, Obs, controller
+from .control.policy import Policy
+from . import eval
 from .data import Dataset
 from .errors import ConfigError, SimulationError
 from .msgs import (ActuatorCommand, Clock, Image, Imu, Instruction, JointCommand, JointState, Pose, Setpoint, Twist,

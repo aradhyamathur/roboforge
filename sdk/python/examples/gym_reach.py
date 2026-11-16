@@ -10,6 +10,7 @@ stable-baselines3 or your own trainer: the environment is the same.
 import numpy as np
 
 import roboforge as rf
+from roboforge.env import box
 
 GOAL = np.array([0.6, 0.5, -0.9])
 
@@ -19,8 +20,11 @@ def make_env():
         q, v = obs.joint.position, obs.joint.velocity
         return -float(np.abs(GOAL - q).sum()) - 0.02 * float(np.abs(v).sum())
     # The action is a joint target; the built-in controller underneath turns it into torques.
+    # The action space is the joints' range of motion, since actions are joint targets.
     app = rf.App(robot="arm", controllers=[rf.JointPD(rate=500)])
+    app.setup()
     return app.as_env(act=lambda a: rf.JointCommand(position=np.asarray(a, float)), reward=reward,
+                      action_space=box(app.physics.joint_range),
                       steps_per_action=25, max_steps=40)            # 20 actions per second, 2 s episodes
 
 

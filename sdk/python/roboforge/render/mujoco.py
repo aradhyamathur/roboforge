@@ -21,7 +21,7 @@ class MujocoRenderer(Renderer):
     name = "mujoco"
 
     def __init__(self, cameras=None, width: int = 320, height: int = 240, fps: float = 10.0, depth: bool = False):
-        super().__init__()
+        super().__init__(cameras=cameras)
         positive(width, "renderer width", integer=True)
         positive(height, "renderer height", integer=True)
         positive(fps, "renderer fps")
@@ -126,21 +126,7 @@ class MujocoRenderer(Renderer):
         fovy, pose, t = float(self.model.cam_fovy[cid]), self._pose(camera), float(self.data.time)
         if depth:
             return msgs.Image(data=data, camera=camera, encoding="depth32f", fovy=fovy, pose=pose, t=t)
-        img = msgs.Image(data=data, camera=camera, fovy=fovy, pose=pose, t=t)
-        for i, p in enumerate(self.passes):
-            who = getattr(p, "__name__", type(p).__name__)
-            try:
-                out = p(img, self)
-            except Exception as e:
-                e.add_note(f"(in render pass {i}, {who}, on camera {camera!r})")
-                raise
-            if out is None:
-                continue                # the pass changed the image in place, or only looked at it
-            if not isinstance(out, msgs.Image):
-                raise ValueError(f"render pass {i} ({who}) returned a {type(out).__name__}; a pass returns an rf.Image, "
-                                 f"or None to keep the image it was given")
-            img = out
-        return img
+        return self.finish(msgs.Image(data=data, camera=camera, fovy=fovy, pose=pose, t=t))
 
     def step(self, t: float):
         if t + 1e-9 < self._next:

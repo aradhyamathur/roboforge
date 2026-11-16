@@ -30,6 +30,12 @@ Controllers
 .. autoclass:: roboforge.Async
 .. autoclass:: roboforge.Chunk
 
+Policies
+--------
+
+.. autoclass:: roboforge.Policy
+   :members: observe, act, command, step, action_space, make_env
+
 Physics
 -------
 
@@ -67,13 +73,22 @@ Data
 ----
 
 .. autoclass:: roboforge.Dataset
-   :members: cameras, signals, times, frames, export_nerfstudio, export_tum
+   :members: cameras, signals, times, trajectory, frames, export_nerfstudio, export_tum
+.. autofunction:: roboforge.callbacks.as_row
+
+Evaluation
+----------
+
+.. automodule:: roboforge.eval
+   :members: ate, rpe, align, associate, write_tum, read_tum
 
 Training
 --------
 
 .. autoclass:: roboforge.env.GymEnv
    :members: reset, step, close
+.. autofunction:: roboforge.env.to_numpy
+.. autofunction:: roboforge.env.box
 
 The bus
 -------
@@ -84,7 +99,9 @@ Base classes
 ------------
 
 .. autoclass:: roboforge.Physics
+   :members: publish_state, camera
 .. autoclass:: roboforge.Renderer
+   :members: setup, render, finish, step, add_pass
 .. autoclass:: roboforge.Link
 .. autoclass:: roboforge.Callback
 

@@ -143,6 +143,25 @@ class MujocoPhysics(Physics):
     def raw(self):
         return self.model, self.data
 
+    def camera(self, name: str):
+        """`(pose, fovy)`: the camera's 4x4 camera-to-world matrix (OpenGL axes, looks along -z) and vertical field of view in degrees."""
+        m = self.model
+        cid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, name) if isinstance(name, str) else -1
+        if cid < 0:
+            have = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_CAMERA, i) for i in range(m.ncam)]
+            raise ConfigError(f"the model has no camera named {name!r}. Its cameras: {', '.join(h for h in have if h) or 'none'}")
+        T = np.eye(4)
+        T[:3, :3] = self.data.cam_xmat[cid].reshape(3, 3)
+        T[:3, 3] = self.data.cam_xpos[cid]
+        return T, float(m.cam_fovy[cid])
+
+    @property
+    def joint_range(self):
+        """`(n_joints, 2)` position limits; +-inf where a joint is unlimited."""
+        m = self.model
+        lim = m.jnt_limited[self._joints].astype(bool)
+        return np.where(lim[:, None], m.jnt_range[self._joints], np.array([-np.inf, np.inf]))
+
     @property
     def allocation(self):
         """For multirotors: how actuator inputs map to body thrust and torques.

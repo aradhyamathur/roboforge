@@ -174,6 +174,33 @@ Each of these carries ``(in controller X at t=...)``.
    ``obs["X"]`` before anything published it. Use ``obs.get("X")`` and
    handle ``None``.
 
+Policies and training
+---------------------
+
+``with your own `act`, also give `action_space```
+   ``app.as_env(act=...)`` turns actions into something other than motor
+   commands, so their range cannot be guessed. Pass
+   ``action_space=roboforge.env.box(ranges)``, or use ``policy.make_env``.
+
+``policy output must be one of joint, actuators, velocity, setpoint``
+
+``policy X produced nan or inf``
+   The network's output, refused before it reaches the robot.
+
+``(policy X could not build its observation for 1000 calls in a row ...)``
+   A note on the error from ``observe``: a signal it reads is never
+   published, or ``observe`` has a bug.
+
+``no signal 'X' in this dataset`` / ``'X' is not a pose signal``
+   From ``Dataset.trajectory``.
+
+``expected (N, 3) positions or (N, 7) poses`` / ``trajectories differ in length; use associate() first``
+   From ``rf.eval``.
+
+``the X physics backend has no cameras``
+   A renderer asked ``physics.camera(name)`` of a backend that does not
+   provide it.
+
 Running
 -------
 

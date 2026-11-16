@@ -27,6 +27,14 @@ class Physics(Component):
 
     Required: `dt`, `time`, `step()`, `reset()`. `raw` exposes the backend's
     own objects for anything this interface does not cover.
+
+    Optional, and what each buys: `joint_names`, `actuator_names` (size
+    checks), `ctrl_range` and `joint_range` (Gymnasium spaces, saturation
+    checks), `camera(name)` (any renderer can draw from it), `allocation`
+    (the multirotor controller and the PX4 link can fly it).
+
+    `publish_state(...)` publishes the clock and whatever state is given,
+    stamped with the current time: the usual last line of `step()`.
     """
     dt: float = 0.01
     time: float = 0.0
@@ -38,28 +46,92 @@ class Physics(Component):
     def reset(self) -> None:
         pass
 
+    def camera(self, name: str):
+        """`(pose, fovy)` of a camera: 4x4 camera-to-world (OpenGL axes) and vertical field of view in degrees."""
+        raise NotImplementedError(f"the {self.name or type(self).__name__} physics backend has no cameras")
+
+    def publish_state(self, joint=None, pose=None, twist=None, imu=None, **signals) -> None:
+        """Publish `clock` and the given state, all stamped with `self.time`.
+
+        `joint`, `pose`, `twist`, `imu` are messages (or None to skip);
+        any other keyword is `signal_name_with_underscores=message`.
+        """
+        from . import msgs
+        t, who = self.time, self.name or type(self).__name__
+        self.bus.publish(msgs.CLOCK, msgs.Clock(t=t), who)
+        for name, m in ((msgs.JOINT_STATE, joint), (msgs.POSE, pose), (msgs.TWIST, twist), (msgs.IMU, imu)):
+            if m is not None:
+                if hasattr(m, "t"):
+                    m.t = t
+                self.bus.publish(name, m, who)
+        for key, m in signals.items():
+            self.bus.publish(key.replace("__", "/"), m, who)
+
 
 class Renderer(Component):
     """Turns world state and a camera into an `Image`.
 
-    Required: `render(camera) -> Image`. `step(t)` is called every physics
-    step and publishes frames at the renderer's own rate. `add_pass` appends a
-    function `(image, renderer) -> image` run on every frame, which is how you
-    add a post-process, an extra buffer, or replace the picture entirely.
-    """
+    A renderer of your own implements one method, `render(camera) -> Image`.
+    This base class does the rest: `setup` picks the cameras (the robot's, by
+    default), `step(t)` publishes `sensor/camera/<name>` at `fps`, and
+    `finish(image)` runs the render passes. Where a camera is comes from
+    `app.physics.camera(name)`, so a renderer need not know the physics engine.
 
-    def __init__(self):
+    `add_pass` appends a function `(image, renderer) -> image` run on every
+    frame: a post-process, an extra buffer, or a replacement picture.
+    """
+    cameras = None
+    fps: float = 10.0
+
+    def __init__(self, cameras=None, fps: float = None):
         self.passes: list = []
+        if cameras is not None:
+            self.cameras = [cameras] if isinstance(cameras, str) else list(cameras)
+        if fps is not None:
+            self.fps = fps
+        self._next_frame = 0.0
+
+    def setup(self, app) -> None:
+        self.bus, self.app = app.bus, app
+        if self.cameras is None:
+            self.cameras = list(app.robot.cameras) if app.robot else []
+        self.outputs = [f"sensor/camera/{c}" for c in self.cameras]
 
     def add_pass(self, fn):
+        if not hasattr(self, "passes"):
+            self.passes = []
         self.passes.append(fn)
         return fn
 
     def render(self, camera: str):
         raise NotImplementedError
 
+    def finish(self, img):
+        """Run the render passes on a frame, naming the pass if one fails."""
+        from .msgs import Image
+        for i, p in enumerate(getattr(self, "passes", [])):
+            who = getattr(p, "__name__", type(p).__name__)
+            try:
+                out = p(img, self)
+            except Exception as e:
+                e.add_note(f"(in render pass {i}, {who}, on camera {img.camera!r})")
+                raise
+            if out is None:
+                continue
+            if not isinstance(out, Image):
+                raise ValueError(f"render pass {i} ({who}) returned a {type(out).__name__}; a pass returns an rf.Image, "
+                                 f"or None to keep the image it was given")
+            img = out
+        return img
+
     def step(self, t: float) -> None:
-        pass
+        if not self.cameras or not self.fps:
+            return
+        if t + 1e-9 < getattr(self, "_next_frame", 0.0):
+            return
+        self._next_frame = max(getattr(self, "_next_frame", 0.0) + 1.0 / self.fps, t)
+        for c in self.cameras:
+            self.bus.publish(f"sensor/camera/{c}", self.render(c), self.name or type(self).__name__)
 
 
 class Link(Component):

@@ -2,7 +2,32 @@ Extending it
 ============
 
 Every part is a small class. Yours are named in an app file as
-``module:Class`` and behave exactly like the built-in ones.
+``module:Class`` and behave exactly like the built-in ones. Four worked
+examples, each a tutorial with a runnable folder:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 20 54
+
+   * - You write
+     - You implement
+     - The SDK does
+   * - A learned policy (:doc:`../tutorials/custom_policy`)
+     - ``observe``, ``act``
+     - the Gymnasium environment and its spaces, conversion of numpy, PyTorch
+       or JAX output to messages, waiting for inputs, deployment as a
+       controller
+   * - A renderer (:doc:`../tutorials/custom_renderer`)
+     - ``render(camera)``
+     - choosing cameras, publishing at ``fps``, render passes, the camera's
+       pose from ``physics.camera``
+   * - A physics solver (:doc:`../tutorials/custom_solver`)
+     - ``step``, ``reset``
+     - the clock and time stamps (``publish_state``); every controller, link
+       and callback works on top
+   * - Sensors and a SLAM method (:doc:`../tutorials/custom_slam`)
+     - callbacks that publish
+     - recording any message type, ATE / RPE / alignment, TUM files
 
 .. list-table::
    :header-rows: 1
@@ -17,16 +42,20 @@ Every part is a small class. Yours are named in an app file as
    * - ``Callback``
      - nothing
      - ``on_start(app)``, ``on_step(app, t)``, ``on_stop(app)``
+   * - ``Policy``
+     - ``observe(obs)``, ``act(x)``, ``output``
+     - ``make_env``, ``action_space``, ``command``
    * - ``Renderer``
      - ``render(camera) -> Image``
-     - ``step(t)`` (publish due frames), ``add_pass``
+     - ``setup`` (call ``super().setup(app)``), ``finish(img)`` (passes),
+       ``step(t)`` is provided
    * - ``Link``
      - nothing
      - ``setup(app)``, ``before_step(t)``, ``after_step(t)``, ``close()``
    * - ``Physics``
      - ``dt``, ``time``, ``step()``, ``reset()``
-     - ``raw``, ``joint_names``, ``actuator_names``, ``ctrl_range``,
-       ``allocation``
+     - ``publish_state(...)``, ``camera(name)``, ``raw``, ``joint_names``,
+       ``actuator_names``, ``ctrl_range``, ``joint_range``, ``allocation``
 
 All have ``setup(app)`` and ``close()``, and ``inputs`` / ``outputs`` lists
 of signal names, which is what ``roboforge info`` and the IDE's Stack view
@@ -93,6 +122,26 @@ For data arriving from outside, check it before publishing and call
 tests for ``nan`` and ``inf``. That is the rule the built-in links follow:
 bad input is dropped and reported, never passed on.
 
+Your own message types
+----------------------
+
+A message is any object; a dataclass with a ``signal`` class attribute can be
+returned from a controller and lands on that signal. Give it ``as_array()``
+and the recorder keeps it too:
+
+.. code-block:: python
+
+   from dataclasses import dataclass
+   from typing import ClassVar
+
+   @dataclass
+   class WheelOdometry:
+       signal: ClassVar[str] = "sensor/odometry"
+       v: float = 0.0
+       w: float = 0.0
+       def as_array(self):
+           return [self.v, self.w]
+
 A physics backend
 -----------------
 
@@ -115,8 +164,7 @@ callback works with it unchanged.
        def step(self):
            ...                                  # advance the simulator by dt
            self.time += self.dt
-           self.bus.publish("clock", rf.Clock(t=self.time), "mysim")
-           self.bus.publish("state/pose", rf.Pose(position=..., orientation=..., t=self.time), "mysim")
+           self.publish_state(pose=rf.Pose(position=..., orientation=...))    # also publishes the clock
 
        def reset(self): ...
 
