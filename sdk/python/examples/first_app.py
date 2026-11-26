@@ -1,7 +1,10 @@
 """A first app: a robot, a controller you wrote, and a look at what happened.
 
     python3 first_app.py
+    mjpython first_app.py --viewer --duration 30  # interactive window on macOS
 """
+import argparse
+
 import numpy as np
 
 import roboforge as rf
@@ -18,16 +21,21 @@ def hold_pose(obs, t):
 
 
 def main():
-    app = rf.App(robot="arm", controllers=[hold_pose], realtime=False)
-    app.run(duration=3.0)                      # three seconds of simulated time
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--viewer", action="store_true", help="open the interactive MuJoCo viewer")
+    parser.add_argument("--duration", type=float, default=3.0, help="seconds of simulated time (default: 3)")
+    args = parser.parse_args()
+    app = rf.App(robot="arm", controllers=[hold_pose], realtime=args.viewer,
+                 callbacks=[rf.Viewer()] if args.viewer else [])
+    with app:
+        app.run(duration=args.duration)
 
-    q = app.bus.latest("state/joint").position
-    print("joint names: ", app.physics.joint_names)
-    print("target:      ", TARGET)
-    print("reached:     ", np.round(q, 3))
-    print("steps:       ", app.steps, f"({app.physics.dt * 1000:.0f} ms each)")
-    print("signals:     ", ", ".join(app.bus.names()))
-    app.close()
+        q = app.bus.latest("state/joint").position
+        print("joint names: ", app.physics.joint_names)
+        print("target:      ", TARGET)
+        print("reached:     ", np.round(q, 3))
+        print("steps:       ", app.steps, f"({app.physics.dt * 1000:.0f} ms each)")
+        print("signals:     ", ", ".join(app.bus.names()))
 
 
 if __name__ == "__main__":

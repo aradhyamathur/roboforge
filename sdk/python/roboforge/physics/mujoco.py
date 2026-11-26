@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import os
+import sys
 
-# Off-screen rendering without a display needs EGL; this must be decided
+# Headless Linux rendering needs EGL; this must be decided
 # before mujoco is imported. An explicit MUJOCO_GL always wins.
-if "MUJOCO_GL" not in os.environ and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+if sys.platform == "linux" and "MUJOCO_GL" not in os.environ and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
     os.environ["MUJOCO_GL"] = "egl"
 
 import mujoco  # noqa: E402

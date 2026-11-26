@@ -56,8 +56,8 @@ impl Terms {
     /// Start an interactive bash in `cwd`. `rc` is sourced after ~/.bashrc.
     pub fn open(&self, cwd: &Path, rc: &Path, cols: u16, rows: u16) -> Result<Arc<Term>, String> {
         let (mut master_fd, mut slave_fd) = (0, 0);
-        let ws = libc::winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0 };
-        if unsafe { libc::openpty(&mut master_fd, &mut slave_fd, std::ptr::null_mut(), std::ptr::null(), &ws) } != 0 {
+        let mut ws = libc::winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0 };
+        if unsafe { libc::openpty(&mut master_fd, &mut slave_fd, std::ptr::null_mut(), std::ptr::null_mut(), &mut ws) } != 0 {
             return Err(format!("openpty failed: {}", std::io::Error::last_os_error()));
         }
         let master = unsafe { OwnedFd::from_raw_fd(master_fd) };
@@ -125,5 +125,28 @@ impl Terms {
                 unsafe { libc::kill(-(t.pid as i32), libc::SIGHUP) };
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn interactive_terminal_runs_and_exits() {
+        let terms = Terms::default();
+        let term = terms.open(&std::env::current_dir().unwrap(), Path::new("/dev/null"), 80, 24).unwrap();
+        term.resize(100, 30);
+        term.write(b"printf 'roboforge-pty-ok\\n'; exit\n").unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while term.status().0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let status = term.status();
+        let (output, _) = term.read_from(0);
+        terms.close(term.id);
+        assert_eq!(status, (false, Some(0)), "{output}");
+        assert!(output.lines().any(|line| line.trim() == "roboforge-pty-ok"), "{output}");
     }
 }

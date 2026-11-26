@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -157,7 +158,7 @@ class Viewer(Callback):
 
     def on_start(self, app):
         import os
-        if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        if sys.platform != "darwin" and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             print("roboforge: no display, so the viewer is skipped.")
             return
         model = getattr(app.physics, "model", None)
