@@ -1,6 +1,10 @@
 """MuJoCo physics, the bundled robots, control, rendering and recording."""
 import json
+import os
+import subprocess
+import sys
 import time
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -9,6 +13,53 @@ mujoco = pytest.importorskip("mujoco")
 
 import roboforge as rf  # noqa: E402
 from roboforge.frames import yaw_of  # noqa: E402
+
+
+@pytest.mark.parametrize("platform,display,explicit,expected", [
+    ("darwin", None, None, None),
+    ("linux", None, None, "egl"),
+    ("linux", ":0", None, None),
+    ("linux", None, "osmesa", "osmesa"),
+])
+def test_graphics_default_respects_platform_and_environment(platform, display, explicit, expected):
+    env = os.environ.copy()
+    for key in ("DISPLAY", "WAYLAND_DISPLAY", "MUJOCO_GL"):
+        env.pop(key, None)
+    if display is not None:
+        env["DISPLAY"] = display
+    if explicit is not None:
+        env["MUJOCO_GL"] = explicit
+    code = f"""
+import os, sys, types
+sys.platform = {platform!r}
+sys.modules["mujoco"] = types.ModuleType("mujoco")
+import roboforge.physics.mujoco
+assert os.environ.get("MUJOCO_GL") == {expected!r}
+"""
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
+
+
+@pytest.mark.parametrize("platform,display,opens", [
+    ("darwin", None, True),
+    ("linux", None, False),
+    ("linux", ":0", True),
+])
+def test_viewer_display_detection(monkeypatch, platform, display, opens):
+    import mujoco.viewer
+
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    if display is not None:
+        monkeypatch.setenv("DISPLAY", display)
+    launched = []
+    handle = SimpleNamespace(close=lambda: None)
+    monkeypatch.setattr(mujoco.viewer, "launch_passive", lambda model, data: launched.append((model, data)) or handle)
+    app = SimpleNamespace(physics=SimpleNamespace(model=object(), data=object()))
+    viewer = rf.Viewer()
+    viewer.on_start(app)
+    assert bool(launched) == opens
+    viewer.on_stop(app)
 
 
 def test_arm_follows_joint_targets():

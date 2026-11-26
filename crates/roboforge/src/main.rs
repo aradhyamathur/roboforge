@@ -202,7 +202,8 @@ fn main() {
                 false
             };
             if !no_open && !window {
-                let _ = Command::new("xdg-open").arg(&url).stderr(std::process::Stdio::null()).spawn();
+                let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+                let _ = Command::new(opener).arg(&url).stderr(std::process::Stdio::null()).spawn();
             }
             unsafe {
                 libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);

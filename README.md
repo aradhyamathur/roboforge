@@ -81,6 +81,22 @@ app = rf.App(robot="arm",
 app.run(duration=10)
 ```
 
+**A visual arm demo on macOS** (no ROS 2 required):
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e 'sdk/python[mujoco]'
+.venv/bin/mjpython sdk/python/examples/first_app.py --viewer --duration 30
+```
+
+Use MuJoCo's `mjpython` launcher for viewer windows on macOS; ordinary
+`python3` works for headless simulations. Drag in the viewer to move the camera
+and close the window to stop the demo. The SDK uses MuJoCo's native graphics
+default on macOS and only selects EGL automatically on headless Linux.
+The IDE's browser build can also be tried on macOS with `cargo build --release`
+and `./target/release/roboforge --browser`; many SDK installation recipes
+still target Linux.
+
 **…or from a file, with no code at all**
 
 ```yaml
